@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build:widget": "cd widget && npm ci && npm run build && cp dist/parsed-widget.js ../public/widget.js",
-    "build": "npm run build:widget && next build --webpack",
+    "build": "npm run build:widget && next build",
     "start": "concurrently \"next start\" \"npm run inngest\"",
     "lint": "eslint",
     "db:generate": "drizzle-kit generate",
