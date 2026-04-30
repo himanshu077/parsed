@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Globe, Loader2, CheckCircle2, XCircle, ArrowLeft, MessageSquare } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useStartImport, useImportJobs } from "@/hooks";
@@ -365,6 +366,8 @@ export default function ImportPage() {
   const [pagesCount, setPagesCount] = useState(0);
   const [errorMsg, setErrorMsg] = useState("");
 
+  const qc = useQueryClient();
+
   const handleStarted = useCallback((jId: string, url: string) => {
     setJobId(jId);
     setRootUrl(url);
@@ -375,7 +378,8 @@ export default function ImportPage() {
     setFileId(fId);
     setPagesCount(pages);
     setView("done");
-  }, []);
+    qc.invalidateQueries({ queryKey: ["folders"] });
+  }, [qc]);
 
   const handleError = useCallback((msg: string) => {
     setErrorMsg(msg);
