@@ -9,9 +9,25 @@ export const LLM_CONFIG = {
   model: process.env.LLM_MODEL as string | undefined,
 };
 
+// Optional automatic failover for generation: if the primary LLM provider is
+// unreachable (e.g. the self-hosted Ollama host is down), generation retries on
+// this provider. Defaults to "openai" when the primary isn't already OpenAI.
+// Only engages if the fallback provider's credentials are configured.
+export const LLM_FALLBACK_PROVIDER =
+  (process.env.LLM_FALLBACK_PROVIDER as LLMProvider | undefined) || undefined;
+
 // Low temperature keeps answers grounded in the retrieved context rather than
 // improvising — important for RAG faithfulness, especially on smaller models.
 export const LLM_TEMPERATURE = Number(process.env.LLM_TEMPERATURE ?? 0.3);
+
+// How answers are produced:
+//   generative — retrieve context, then an LLM writes the answer (default)
+//   extractive — no LLM; return the best-matching sentences verbatim from the
+//                retrieved documents, ranked with the embedding model. Grounded,
+//                deterministic, and cheaper, but no synthesis across sources.
+export const ANSWER_MODE = (process.env.ANSWER_MODE ?? "generative") as
+  | "generative"
+  | "extractive";
 
 export const EMBEDDING_CONFIG = {
   provider: (process.env.EMBEDDING_PROVIDER ?? "ollama") as EmbeddingProvider,

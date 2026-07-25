@@ -3,13 +3,12 @@ import { headers } from "next/headers";
 import {
   createUIMessageStream,
   createUIMessageStreamResponse,
-  streamText,
   isTextUIPart,
 } from "ai";
 import type { UIMessage, ModelMessage } from "ai";
 import { auth } from "@/lib/auth";
-import { retrieveContext, buildSystemPrompt } from "@/lib/rag";
-import { getLLMModel, LLM_TEMPERATURE } from "@/lib/ai";
+import { retrieveContext, retrieveExtractiveAnswer, buildSystemPrompt } from "@/lib/rag";
+import { streamTextWithFallback, ANSWER_MODE } from "@/lib/ai";
 import { db } from "@/lib/database";
 import { chats, chatMessages } from "@/db/schema";
 
@@ -73,41 +72,59 @@ export async function POST(req: Request) {
 
   const stream = createUIMessageStream({
     execute: async ({ writer }) => {
-      // Retrieval (embed + Pinecone) and DB setup (chat record + user message)
-      // run in parallel. Any failure here is caught by onError below and
-      // surfaced to the user as an in-chat message instead of a hard 500.
-      const [{ context, sources }, resolvedChatId] = await Promise.all([
-        retrieveContext(query, userId, { fileIds }),
+      // Retrieval and DB setup (chat record + user message) run in parallel.
+      // Any failure here is caught by onError below and surfaced to the user as
+      // an in-chat message instead of a hard 500.
+      const [retrieval, resolvedChatId] = await Promise.all([
+        ANSWER_MODE === "extractive"
+          ? retrieveExtractiveAnswer(query, userId, { fileIds })
+          : retrieveContext(query, userId, { fileIds }),
         ensureChatAndSaveUserMessage(userId, query, chatId),
       ]);
 
+      const sources = retrieval.sources;
       writer.write({ type: "data-sources", data: sources });
 
-      // Trim to last N messages to keep model input small
-      const coreMessages = messages
-        .slice(-MAX_HISTORY_MESSAGES)
-        .flatMap((msg) => {
-          const text = msg.parts.filter(isTextUIPart).map((p) => p.text).join("");
-          if (!text) return [];
-          return [{ role: msg.role as "user" | "assistant", content: text }];
-        }) as ModelMessage[];
+      const id = crypto.randomUUID();
+      writer.write({ type: "text-start", id });
+      let full = "";
 
-      const result = streamText({
-        model: getLLMModel(),
-        temperature: LLM_TEMPERATURE,
-        system: buildSystemPrompt(context),
-        messages: coreMessages,
-        onFinish: async ({ text }) => {
-          await db.insert(chatMessages).values({
-            chatId: resolvedChatId,
-            role: "assistant",
-            content: text,
-            sources: sources.length > 0 ? JSON.stringify(sources) : null,
-          });
-        },
+      if ("answer" in retrieval) {
+        // Extractive mode: stream the precomputed verbatim answer (no LLM).
+        full = retrieval.answer;
+        writer.write({ type: "text-delta", id, delta: full });
+      } else {
+        // Generative mode: an LLM writes the answer, with provider failover.
+        // Text chunks are written manually (rather than merging the SDK stream)
+        // so failover can trigger on the first token if the primary is down.
+        const coreMessages = messages
+          .slice(-MAX_HISTORY_MESSAGES)
+          .flatMap((msg) => {
+            const text = msg.parts.filter(isTextUIPart).map((p) => p.text).join("");
+            if (!text) return [];
+            return [{ role: msg.role as "user" | "assistant", content: text }];
+          }) as ModelMessage[];
+
+        const { textStream } = await streamTextWithFallback({
+          system: buildSystemPrompt(retrieval.context),
+          messages: coreMessages,
+        });
+        for await (const delta of textStream) {
+          full += delta;
+          writer.write({ type: "text-delta", id, delta });
+        }
+      }
+
+      writer.write({ type: "text-end", id });
+
+      // Persist only a fully-produced response; a mid-stream failure throws
+      // above and is handled by onError instead of saving a partial answer.
+      await db.insert(chatMessages).values({
+        chatId: resolvedChatId,
+        role: "assistant",
+        content: full,
+        sources: sources.length > 0 ? JSON.stringify(sources) : null,
       });
-
-      writer.merge(result.toUIMessageStream());
     },
     onError: (error) => {
       console.error("[/api/chat] stream error:", error);

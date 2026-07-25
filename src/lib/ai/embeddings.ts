@@ -9,6 +9,30 @@ import {
 
 const BATCH_SIZE = 100;
 
+// Embeddings intentionally do NOT fail over to a different provider: the vector
+// index is tied to one embedding model's dimensions and vector space, so a
+// query embedded by a different model can't match stored vectors. The correct
+// resilience here is a bounded retry against the SAME provider for transient
+// network blips.
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  retries = 2,
+  baseDelayMs = 500,
+): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, baseDelayMs * (attempt + 1)));
+      }
+    }
+  }
+  throw lastError;
+}
+
 export async function embedTexts(texts: string[]): Promise<number[][]> {
   const { provider, model } = EMBEDDING_CONFIG;
   const resolvedModel = model ?? DEFAULT_EMBEDDING_MODELS[provider];
@@ -17,11 +41,13 @@ export async function embedTexts(texts: string[]): Promise<number[][]> {
     const embeddings: number[][] = [];
     for (let i = 0; i < texts.length; i += BATCH_SIZE) {
       const batch = texts.slice(i, i + BATCH_SIZE);
-      const { embeddings: batchEmbeddings } = await embedMany({
-        model: google.embedding(resolvedModel),
-        values: batch,
-        providerOptions: { google: { outputDimensionality: 768 } },
-      });
+      const { embeddings: batchEmbeddings } = await withRetry(() =>
+        embedMany({
+          model: google.embedding(resolvedModel),
+          values: batch,
+          providerOptions: { google: { outputDimensionality: 768 } },
+        }),
+      );
       embeddings.push(...batchEmbeddings);
     }
     return embeddings;
@@ -36,10 +62,12 @@ export async function embedTexts(texts: string[]): Promise<number[][]> {
   const embeddings: number[][] = [];
   for (let i = 0; i < texts.length; i += BATCH_SIZE) {
     const batch = texts.slice(i, i + BATCH_SIZE);
-    const response = await client.embeddings.create({
-      model: resolvedModel,
-      input: batch,
-    });
+    const response = await withRetry(() =>
+      client.embeddings.create({
+        model: resolvedModel,
+        input: batch,
+      }),
+    );
     embeddings.push(...response.data.map((d) => d.embedding));
   }
   return embeddings;

@@ -1,9 +1,8 @@
 import { and, eq, inArray } from "drizzle-orm";
-import { streamText } from "ai";
 import { db } from "@/lib/database";
 import { folders, files } from "@/db/schema";
-import { retrieveContext, buildSystemPrompt } from "@/lib/rag";
-import { getLLMModel, LLM_TEMPERATURE } from "@/lib/ai";
+import { retrieveContext, retrieveExtractiveAnswer, buildSystemPrompt } from "@/lib/rag";
+import { streamTextWithFallback, ANSWER_MODE } from "@/lib/ai";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 const CORS = {
@@ -106,23 +105,28 @@ export async function POST(req: Request) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        // Retrieval (embed + Pinecone) and generation run inside the stream so
-        // any provider/DB failure degrades to a streamed error event rather
-        // than a hard 500 with no body.
-        const { context, sources } = await retrieveContext(query, folder.userId, {
-          fileIds,
-        });
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "sources", data: sources })}\n\n`));
+        // Retrieval and generation run inside the stream so any provider/DB
+        // failure degrades to a streamed error event rather than a hard 500.
+        if (ANSWER_MODE === "extractive") {
+          const { answer, sources } = await retrieveExtractiveAnswer(query, folder.userId, {
+            fileIds,
+          });
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "sources", data: sources })}\n\n`));
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "text", content: answer })}\n\n`));
+        } else {
+          const { context, sources } = await retrieveContext(query, folder.userId, {
+            fileIds,
+          });
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "sources", data: sources })}\n\n`));
 
-        const result = streamText({
-          model: getLLMModel(),
-          temperature: LLM_TEMPERATURE,
-          system: buildSystemPrompt(context),
-          messages: coreMessages,
-        });
+          const { textStream } = await streamTextWithFallback({
+            system: buildSystemPrompt(context),
+            messages: coreMessages,
+          });
 
-        for await (const chunk of result.textStream) {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "text", content: chunk })}\n\n`));
+          for await (const chunk of textStream) {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "text", content: chunk })}\n\n`));
+          }
         }
       } catch (err) {
         console.error("[/api/widget/chat] stream error:", err);
