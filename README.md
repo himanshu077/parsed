@@ -8,7 +8,7 @@ Parsed extracts text, embeds it into Pinecone, and uses Google Gemini to answer 
 
 ## Tech Stack
 
-- **Framework:** Next.js 15 (App Router)
+- **Framework:** Next.js 16 (App Router)
 - **Auth:** Better Auth (email/password + Google OAuth)
 - **Database:** PostgreSQL via Neon + Drizzle ORM
 - **File Storage:** Vercel Blob

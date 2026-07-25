@@ -19,7 +19,7 @@ export function Widget({ config }: Props) {
   return (
     <div
       className={cn(
-        "fixed bottom-5 z-[9999] flex flex-col items-end gap-3",
+        "fixed bottom-5 z-9999 flex flex-col items-end gap-3",
         isBottomLeft ? "left-5 items-start" : "right-5 items-end",
       )}
     >

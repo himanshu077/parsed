@@ -3,13 +3,19 @@ import { streamText } from "ai";
 import { db } from "@/lib/database";
 import { folders, files } from "@/db/schema";
 import { retrieveContext, buildSystemPrompt } from "@/lib/rag";
-import { getLLMModel } from "@/lib/ai";
+import { getLLMModel, LLM_TEMPERATURE } from "@/lib/ai";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
 };
+
+// Public, unauthenticated endpoint — cap requests per token+IP to prevent
+// abuse of LLM/embedding compute.
+const RATE_LIMIT = 20; // requests
+const RATE_WINDOW_MS = 60_000; // per minute
 
 function getDescendantIds(
   allFolders: { id: string; parentId: string | null }[],
@@ -34,6 +40,14 @@ export async function POST(req: Request) {
 
   if (!token || !query?.trim()) {
     return Response.json({ error: "Missing token or query" }, { status: 400, headers: CORS });
+  }
+
+  const limit = rateLimit(`widget:${token}:${clientIp(req)}`, RATE_LIMIT, RATE_WINDOW_MS);
+  if (!limit.ok) {
+    return Response.json(
+      { error: "Too many requests. Please slow down." },
+      { status: 429, headers: { ...CORS, "Retry-After": String(limit.retryAfter) } },
+    );
   }
 
   const [folder] = await db
@@ -83,29 +97,36 @@ export async function POST(req: Request) {
     });
   }
 
-  const { context, sources } = await retrieveContext(query, folder.userId, { fileIds });
-
   const coreMessages = (messages as { role: string; content: string }[])
     .filter((m) => m.role === "user" || m.role === "assistant")
     .slice(-8)
     .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
   coreMessages.push({ role: "user", content: query });
 
-  const result = streamText({
-    model: getLLMModel(),
-    system: buildSystemPrompt(context),
-    messages: coreMessages,
-  });
-
   const stream = new ReadableStream({
     async start(controller) {
       try {
+        // Retrieval (embed + Pinecone) and generation run inside the stream so
+        // any provider/DB failure degrades to a streamed error event rather
+        // than a hard 500 with no body.
+        const { context, sources } = await retrieveContext(query, folder.userId, {
+          fileIds,
+        });
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "sources", data: sources })}\n\n`));
+
+        const result = streamText({
+          model: getLLMModel(),
+          temperature: LLM_TEMPERATURE,
+          system: buildSystemPrompt(context),
+          messages: coreMessages,
+        });
+
         for await (const chunk of result.textStream) {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "text", content: chunk })}\n\n`));
         }
-      } catch {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "error", message: "Stream error" })}\n\n`));
+      } catch (err) {
+        console.error("[/api/widget/chat] stream error:", err);
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "text", content: "Sorry — I couldn't generate a response right now. Please try again." })}\n\n`));
       } finally {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "done" })}\n\n`));
         controller.close();

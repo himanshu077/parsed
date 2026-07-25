@@ -4,8 +4,14 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/database";
 import { uploadToBlob } from "@/lib/storage";
+import { after } from "next/server";
 import { files, folders } from "@/db/schema";
 import { inngest } from "@/lib/inngest";
+import {
+  runFileProcessing,
+  markProcessingError,
+  INNGEST_DISABLED,
+} from "@/lib/file-processing";
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
 
@@ -138,11 +144,34 @@ export async function POST(req: Request) {
       })
       .returning();
 
-    // Send event to Inngest — processing runs as a background job
-    await inngest.send({
-      name: "file/uploaded",
-      data: { fileId: newFile.id, userId: session.user.id },
-    });
+    // Kick off processing. In prod, dispatch to the Inngest background job.
+    // Locally (Inngest dev-server binary blocked), run inline via after().
+    try {
+      if (INNGEST_DISABLED) {
+        const fileId = newFile.id;
+        const userId = session.user.id;
+        after(() =>
+          runFileProcessing(fileId, userId).catch((e) =>
+            markProcessingError(
+              fileId,
+              e instanceof Error ? e.message : "Processing failed",
+            ),
+          ),
+        );
+      } else {
+        await inngest.send({
+          name: "file/uploaded",
+          data: { fileId: newFile.id, userId: session.user.id },
+        });
+      }
+    } catch (e) {
+      // Dispatch failed — mark the file errored instead of leaving it stuck
+      // "uploading" so the client reflects the failure and can retry.
+      await markProcessingError(
+        newFile.id,
+        e instanceof Error ? e.message : "Failed to start processing",
+      );
+    }
 
     return Response.json(newFile, { status: 201 });
   } catch {

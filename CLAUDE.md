@@ -2,8 +2,8 @@
 
 ## What is Parsed
 
-AI-powered document chat tool. Upload PDF, DOCX, TXT, or Markdown files — ask anything about them.
-Parsed extracts text, embeds it into Pinecone, and uses Claude to answer questions with source citations.
+AI-powered document chat tool. Upload PDF, DOCX, TXT, or Markdown files (or import a website) — ask anything about them.
+Parsed extracts text, embeds it into Pinecone, and uses a configurable LLM (Ollama by default) to answer questions with source citations.
 
 **Tagline:** Upload any document. Ask anything.
 
@@ -24,19 +24,21 @@ Parsed extracts text, embeds it into Pinecone, and uses Claude to answer questio
 
 | Layer | Technology |
 |---|---|
-| Framework | Next.js 15 (App Router) |
+| Framework | Next.js 16 (App Router) |
 | Language | TypeScript 5 |
 | Styling | Tailwind CSS v4 |
 | UI Components | shadcn/ui (new-york, neutral, CSS variables) |
-| Auth | Better Auth |
+| Auth | Better Auth (email/password, Google OAuth, Resend reset email) |
 | Database | PostgreSQL via Neon + Drizzle ORM |
 | File Storage | Vercel Blob |
-| Vector DB | Pinecone (index: `parsed`, 1536 dims, cosine) |
-| Embeddings | OpenAI `text-embedding-3-small` |
-| LLM | Anthropic Claude 3.5 Sonnet |
-| AI Streaming | Vercel AI SDK |
+| Vector DB | Pinecone (index: `parsed`, cosine, dims match embedding provider) |
+| Embeddings | Configurable: `EMBEDDING_PROVIDER` = openai \| google \| ollama (default **ollama** `nomic-embed-text`, 768d) |
+| LLM | Configurable: `LLM_PROVIDER` = anthropic \| openai \| google \| ollama (default **ollama** `llama3.1:8b`) |
+| AI Streaming | Vercel AI SDK (`ai` v6) |
+| Background Jobs | Inngest (file processing, website crawl) |
+| Realtime | Pusher (upload/crawl progress) |
 | Package Manager | npm |
-| Deployment | Vercel |
+| Deployment | Vercel or self-hosted EC2 (Ollama) |
 
 ---
 
@@ -45,61 +47,76 @@ Parsed extracts text, embeds it into Pinecone, and uses Claude to answer questio
 ```
 src/
 ├── app/
-│   ├── (auth)/                          # Auth pages (login, register)
+│   ├── auth/                            # Auth pages (sign-in, sign-up, forgot/reset password)
 │   ├── (app)/
 │   │   ├── layout.tsx                   # App shell with sidebar
-│   │   ├── page.tsx                     # Dashboard
+│   │   ├── dashboard/page.tsx           # Dashboard
 │   │   ├── folders/[id]/page.tsx        # Folder view
 │   │   ├── files/[id]/page.tsx          # File view + chat panel
-│   │   └── chat/page.tsx                # Multi-file chat
+│   │   ├── chat/page.tsx                # Multi-file chat
+│   │   └── import/page.tsx              # URL / website import
 │   └── api/
 │       ├── auth/[...all]/route.ts       # Better Auth handler
 │       ├── folders/route.ts             # GET list, POST create
 │       ├── folders/[id]/route.ts        # GET, PUT, DELETE
+│       ├── folders/[id]/widget-token/   # GET/POST embeddable-widget token
 │       ├── files/route.ts               # GET list, POST upload
-│       ├── files/[id]/route.ts          # GET, DELETE
-│       ├── files/[id]/process/route.ts  # POST re-embed
-│       └── chat/route.ts                # POST streaming RAG
+│       ├── files/[id]/route.ts          # GET, PATCH (move), DELETE
+│       ├── files/[id]/process/route.ts  # POST re-embed (via Inngest)
+│       ├── chat/route.ts                # POST streaming RAG
+│       ├── chats/route.ts               # GET/POST chat sessions
+│       ├── chats/[id]/messages/route.ts # GET paginated history
+│       ├── import-url/route.ts          # POST start crawl, GET jobs
+│       ├── import-url/[id]/route.ts     # GET job status
+│       ├── widget/chat/route.ts         # POST public widget RAG (token-scoped)
+│       └── inngest/route.ts             # Inngest serve (processFile, crawlWebsite)
 │
 ├── components/
 │   ├── ui/                              # shadcn auto-generated — never edit manually
-│   ├── layout/                          # Sidebar, Header, AppShell, FolderTree
-│   ├── folders/                         # FolderCard, FolderMoveModal
-│   ├── files/                           # FileUploader, FileCard, FileViewer, FileList, TagInput
+│   ├── layout/                          # AppShell, AppSidebar, Header, FolderTree
+│   ├── folders/                         # FolderCard, FolderMoveModal, EmbedButton, …
+│   ├── files/                           # FileUploader, FileCard, FileViewer, PDFViewer, …
 │   └── chat/                            # ChatPanel, ChatMessage, ChatScopeBar, SourceCard, ChatInput
 │
 ├── lib/
+│   ├── ai/                              # Provider-agnostic AI layer
+│   │   ├── config.ts                    # LLM/embedding provider + model + temperature config
+│   │   ├── llm.ts                       # getLLMModel() — anthropic|openai|google|ollama
+│   │   └── embeddings.ts                # embedTexts() — openai|google|ollama
 │   ├── auth.ts                          # Better Auth server config
 │   ├── auth-client.ts                   # Better Auth client
-│   ├── database.ts                      # Drizzle client (Neon)
+│   ├── database.ts                      # Drizzle client (Neon / postgres.js)
 │   ├── utils.ts                         # cn() and helpers
-│   ├── pinecone.ts                      # Pinecone client + upsert/delete helpers
-│   ├── embeddings.ts                    # OpenAI embed function
-│   ├── rag.ts                           # RAG pipeline — retrieve + generate
-│   ├── chunker.ts                       # Text chunking (~500 tokens, 50 overlap)
+│   ├── pinecone.ts                      # Pinecone client + upsert/query/delete helpers
+│   ├── embeddings.ts                    # Re-export of lib/ai/embeddings
+│   ├── hybrid-search.ts                 # Vector + Postgres FTS merged via RRF
+│   ├── rag.ts                           # retrieveContext + rerank + buildSystemPrompt
+│   ├── tokens.ts                        # Token-budget trimming
+│   ├── chunker.ts                       # Text chunking (1500 chars, 200 overlap)
+│   ├── crawler.ts                       # BFS website crawler (cheerio)
+│   ├── extractor.ts                     # Page extraction + site markdown compile
+│   ├── inngest.ts                       # Inngest client
+│   ├── pusher.ts / pusher-client.ts     # Realtime progress
+│   ├── email.ts                         # Resend password-reset email
 │   ├── storage.ts                       # Vercel Blob upload/delete
 │   └── parsers/
-│       ├── index.ts                     # Router: picks parser by file type
-│       ├── pdf.ts                       # pdf-parse wrapper
+│       ├── index.ts                     # Router: pdf|docx|txt|md|web
+│       ├── pdf.ts                       # unpdf wrapper
 │       ├── docx.ts                      # mammoth wrapper
-│       └── text.ts                      # TXT / MD reader
+│       └── text.ts                      # TXT / MD / web reader
+│
+├── inngest/
+│   ├── process-file.ts                  # File processing background job
+│   └── crawl-website.ts                 # Website crawl background job
 │
 ├── db/
-│   ├── schema.ts                        # App schema barrel (folders, files, file_chunks)
+│   ├── schema.ts                        # App schema (folders, files, file_chunks, chats, chat_messages, web_crawl_jobs)
 │   └── auth-schema.ts                   # Better Auth generated — never edit manually
 │
-├── hooks/
-│   ├── useFiles.ts
-│   └── useChat.ts
-│
-├── providers/
-│   └── QueryProvider.tsx                # TanStack Query provider
-│
-├── types/
-│   ├── index.ts                         # Barrel export
-│   └── *.types.ts                       # Domain types
-│
-└── middleware.ts                        # Auth route protection
+├── hooks/                              # useFiles, useFolders, useImportUrl, use-debounce, …
+├── providers/                          # QueryProvider (TanStack Query)
+├── types/                              # Domain types + barrel
+└── proxy.ts                            # Auth route protection (Next 16 convention)
 ```
 
 ---
@@ -107,12 +124,17 @@ src/
 ## Database Schema
 
 ```
-folders       — id, userId, name, parentId (self-ref FK, null = root), createdAt, updatedAt
-files         — id, userId, folderId (null = root), name, type, size, blobUrl, status, tags[], createdAt, updatedAt
-file_chunks   — id, fileId, chunkIndex, content, pineconeId
+folders       — id, userId, name, parentId (self-ref FK, null = root), widgetToken (unique), createdAt, updatedAt
+files         — id, userId, folderId (null = root), name, originalName, type, size, blobUrl, status, tags[], errorMessage, createdAt, updatedAt
+file_chunks   — id, fileId, chunkIndex, content, pineconeId, createdAt
+chats         — id, userId, title, createdAt, updatedAt
+chat_messages — id, chatId, role (user|assistant), content, sources (JSON, null for user), createdAt
+web_crawl_jobs— id, userId, folderId, rootUrl, status, totalPages, processedPages, fileId, errorMessage, createdAt, updatedAt
 ```
 
-`status` values: `uploading` → `processing` → `ready` | `error`
+`files.type` values: `pdf` | `docx` | `txt` | `md` | `web`
+`files.status` values: `uploading` → `processing` → `ready` | `error`
+`web_crawl_jobs.status` values: `pending` → `crawling` → `processing` → `done` | `error`
 
 Auth tables in `src/db/auth-schema.ts` (users, sessions, accounts, verifications) — managed by Better Auth, never edit manually.
 
@@ -122,11 +144,13 @@ Drizzle config: snake_case, schemas from `src/db/schema.ts` + `src/db/auth-schem
 
 ## Pinecone
 
-Index: `parsed` — 768 dims, cosine metric, namespace per user (`userId`).
+Index: `parsed` — cosine metric, namespace per user (`userId`).
+**Dimensions must match the active embedding provider**: 768 for `ollama`/`google` defaults, 1536 for `openai`. Default self-host deployments use 768 (`nomic-embed-text`).
 
 Vector metadata per chunk:
 ```
-fileId, fileName, fileType, folderId, folderPath, chunkIndex, tags[], preview (first 200 chars)
+fileId, fileName, fileType, folderId, folderPath, chunkIndex, tags[], size,
+preview (first 200 chars), content (full chunk text), pageUrl (web-crawl chunks only)
 ```
 
 ---
@@ -134,37 +158,59 @@ fileId, fileName, fileType, folderId, folderPath, chunkIndex, tags[], preview (f
 ## File Processing Pipeline
 
 ```
-Upload → Vercel Blob → Extract text → Chunk → Embed → Pinecone upsert → status = ready
+Upload → Vercel Blob → Inngest event "file/uploaded" → processFile job:
+  mark-processing → download → parse → chunk → resolve folder path →
+  delete existing chunks → embed → Pinecone upsert → save chunks → status = ready
 ```
 
-Parser routing by file type:
-- `.pdf`  → `pdf-parse`
+Runs as an **Inngest** background job (`src/inngest/process-file.ts`), with live progress over **Pusher** (`file-${fileId}`). Re-process via `POST /api/files/[id]/process` (re-fires the same event).
+
+Parser routing by file type (`src/lib/parsers/`):
+- `.pdf`  → `unpdf`
 - `.docx` → `mammoth`
-- `.txt`  → native read
-- `.md`   → native read
+- `.txt` / `.md` / `web` → `TextDecoder`
+
+Website import: `POST /api/import-url` → Inngest `url/crawl.start` → `crawlWebsite` (BFS crawl via cheerio, one compiled `.md` file, per-chunk `pageUrl` attribution), progress over Pusher (`crawl-${jobId}`).
 
 Always check `file.status === "ready"` before allowing chat on a file.
+
+### Retrieval (RAG)
+`retrieveContext` (`src/lib/rag.ts`) runs **hybrid search** (`src/lib/hybrid-search.ts`): Pinecone vector (topK 15) + Postgres full-text (topK 10), merged via **Reciprocal Rank Fusion** (k=60) → optional **Jina rerank** (if `JINA_API_KEY` set; final top-K 5) → token-budget trim (~6000 tokens) → `streamText` with the configured provider at `LLM_TEMPERATURE`. Chat sessions + messages are persisted (`chats`, `chat_messages`).
 
 ---
 
 ## API Routes
 
 ```
-GET  /api/files                → list files (?folderId=)
-POST /api/files                → upload (multipart/form-data) + trigger processing
-GET  /api/files/:id            → metadata + status
-DEL  /api/files/:id            → delete file + Blob + Pinecone vectors
-POST /api/files/:id/process    → re-trigger extraction + embedding
+GET   /api/files                    → list files (?folderId=)
+POST  /api/files                    → upload (multipart/form-data) + trigger Inngest processing
+GET   /api/files/:id                → metadata + status
+PATCH /api/files/:id                → move file { folderId }
+DEL   /api/files/:id                → delete file + Blob + Pinecone vectors
+POST  /api/files/:id/process        → re-trigger processing (via Inngest)
 
-GET  /api/folders              → full folder tree for authed user
-POST /api/folders              → create { name, parentId? }
-PUT  /api/folders/:id          → rename { name }
-DEL  /api/folders/:id          → { strategy: "move-to-root" | "delete-all" }
+GET   /api/folders                  → full folder tree for authed user
+POST  /api/folders                  → create { name, parentId? }
+PUT   /api/folders/:id              → rename { name }
+DEL   /api/folders/:id              → { strategy: "move-to-root" | "delete-all" }
+GET   /api/folders/:id/widget-token → get embeddable-widget token
+POST  /api/folders/:id/widget-token → (re)generate widget token
 
-POST /api/chat                 → streaming RAG
-                                 body: { query, fileIds?, folderId?, tags? }
-                                 returns: SSE stream + sources[]
+POST  /api/chat                     → streaming RAG (UIMessage stream)
+                                       body: { messages, fileIds?, chatId? }
+GET   /api/chats                    → list chat sessions
+POST  /api/chats                    → create chat session
+GET   /api/chats/:id/messages       → paginated history (?before=)
+
+POST  /api/import-url               → start website crawl { url, maxPages? } → { jobId }
+GET   /api/import-url               → recent crawl jobs
+GET   /api/import-url/:id           → job status + fileId
+
+POST  /api/widget/chat              → public folder-scoped RAG (token auth, CORS)
+*     /api/inngest                  → Inngest serve (processFile, crawlWebsite)
 ```
+
+Note: folder/tag chat scope is resolved to a concrete `fileIds[]` client-side before calling `/api/chat`.
 
 ---
 
@@ -219,16 +265,45 @@ npm run auth:generate # Regenerate Better Auth schema
 ## Environment Variables
 
 ```bash
+# Database / Auth / Storage
 DATABASE_URL=
 BETTER_AUTH_SECRET=
 BETTER_AUTH_URL=
+NEXT_PUBLIC_APP_URL=
 BLOB_READ_WRITE_TOKEN=
+
+# AI providers (default: ollama, local — no keys needed)
+LLM_PROVIDER=ollama            # anthropic | openai | google | ollama
+LLM_MODEL=llama3.1:8b
+LLM_TEMPERATURE=0.3
+EMBEDDING_PROVIDER=ollama      # openai | google | ollama
+EMBEDDING_MODEL=nomic-embed-text
+OLLAMA_BASE_URL=http://localhost:11434
+JINA_API_KEY=                  # optional — enables reranking
+# Provider keys (only for the provider(s) you use)
 OPENAI_API_KEY=
 ANTHROPIC_API_KEY=
+GOOGLE_GENERATIVE_AI_API_KEY=
+
+# Vector DB
 PINECONE_API_KEY=
 PINECONE_INDEX_NAME=parsed
+
+# OAuth / Email
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
+RESEND_API_KEY=
+
+# Background jobs (Inngest) + Realtime (Pusher)
+INNGEST_EVENT_KEY=
+INNGEST_SIGNING_KEY=
+INNGEST_DEV=
+PUSHER_APP_ID=
+PUSHER_KEY=
+PUSHER_SECRET=
+PUSHER_CLUSTER=
+NEXT_PUBLIC_PUSHER_KEY=
+NEXT_PUBLIC_PUSHER_CLUSTER=
 ```
 
 ---

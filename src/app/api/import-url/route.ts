@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/database";
 import { webCrawlJobs } from "@/db/schema";
 import { inngest } from "@/lib/inngest";
+import { assertPublicUrl } from "@/lib/url-guard";
 
 export async function POST(req: Request) {
   try {
@@ -17,11 +18,13 @@ export async function POST(req: Request) {
 
     let rootUrl: string;
     try {
-      const parsed = new URL(rawUrl);
-      if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("Invalid protocol");
+      const parsed = await assertPublicUrl(rawUrl);
       rootUrl = parsed.toString();
-    } catch {
-      return Response.json({ error: "Invalid URL" }, { status: 400 });
+    } catch (e) {
+      return Response.json(
+        { error: e instanceof Error ? e.message : "Invalid URL" },
+        { status: 400 },
+      );
     }
 
     const ALLOWED_MAX_PAGES = [10, 25, 50] as const;

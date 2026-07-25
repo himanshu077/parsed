@@ -9,22 +9,57 @@ import {
 import type { UIMessage, ModelMessage } from "ai";
 import { auth } from "@/lib/auth";
 import { retrieveContext, buildSystemPrompt } from "@/lib/rag";
-import { getLLMModel } from "@/lib/ai";
+import { getLLMModel, LLM_TEMPERATURE } from "@/lib/ai";
 import { db } from "@/lib/database";
 import { chats, chatMessages } from "@/db/schema";
 
 const MAX_HISTORY_MESSAGES = 8;
 
+/**
+ * Ensures a chat record exists (creating it if needed) and persists the user's
+ * message. Returns the resolved chat id.
+ */
+async function ensureChatAndSaveUserMessage(
+  userId: string,
+  query: string,
+  chatId?: string,
+): Promise<string> {
+  let id = chatId;
+  if (id) {
+    const existing = await db
+      .select({ id: chats.id })
+      .from(chats)
+      .where(and(eq(chats.id, id), eq(chats.userId, userId)))
+      .limit(1);
+    if (existing.length === 0) {
+      await db.insert(chats).values({ id, userId, title: query.slice(0, 100) });
+    }
+  } else {
+    const [newChat] = await db
+      .insert(chats)
+      .values({ userId, title: query.slice(0, 100) })
+      .returning();
+    id = newChat.id;
+  }
+  await db.insert(chatMessages).values({ chatId: id!, role: "user", content: query });
+  return id!;
+}
+
 export async function POST(req: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const {
-    messages,
-    fileIds,
-    chatId,
-  }: { messages: UIMessage[]; fileIds?: string[]; chatId?: string } =
-    await req.json();
+  let body: { messages?: UIMessage[]; fileIds?: string[]; chatId?: string };
+  try {
+    body = await req.json();
+  } catch {
+    return Response.json({ error: "Invalid request body" }, { status: 400 });
+  }
+
+  const { messages, fileIds, chatId } = body;
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return Response.json({ error: "No messages provided" }, { status: 400 });
+  }
 
   const lastMessage = messages.at(-1);
   const query =
@@ -34,45 +69,21 @@ export async function POST(req: Request) {
     return Response.json({ error: "No query provided" }, { status: 400 });
   }
 
-  // Parallelize: retrieval (embed + Pinecone) and DB setup (chat record + user message)
-  const [{ context, sources }, resolvedChatId] = await Promise.all([
-    retrieveContext(query, session.user.id, { fileIds }),
-    (async () => {
-      let id = chatId;
-      if (id) {
-        const existing = await db
-          .select({ id: chats.id })
-          .from(chats)
-          .where(and(eq(chats.id, id), eq(chats.userId, session.user.id)))
-          .limit(1);
-        if (existing.length === 0) {
-          await db.insert(chats).values({
-            id,
-            userId: session.user.id,
-            title: query.slice(0, 100),
-          });
-        }
-      } else {
-        const [newChat] = await db
-          .insert(chats)
-          .values({ userId: session.user.id, title: query.slice(0, 100) })
-          .returning();
-        id = newChat.id;
-      }
-      await db.insert(chatMessages).values({
-        chatId: id!,
-        role: "user",
-        content: query,
-      });
-      return id!;
-    })(),
-  ]);
+  const userId = session.user.id;
 
   const stream = createUIMessageStream({
     execute: async ({ writer }) => {
+      // Retrieval (embed + Pinecone) and DB setup (chat record + user message)
+      // run in parallel. Any failure here is caught by onError below and
+      // surfaced to the user as an in-chat message instead of a hard 500.
+      const [{ context, sources }, resolvedChatId] = await Promise.all([
+        retrieveContext(query, userId, { fileIds }),
+        ensureChatAndSaveUserMessage(userId, query, chatId),
+      ]);
+
       writer.write({ type: "data-sources", data: sources });
 
-      // Trim to last N messages to keep Claude input small
+      // Trim to last N messages to keep model input small
       const coreMessages = messages
         .slice(-MAX_HISTORY_MESSAGES)
         .flatMap((msg) => {
@@ -83,6 +94,7 @@ export async function POST(req: Request) {
 
       const result = streamText({
         model: getLLMModel(),
+        temperature: LLM_TEMPERATURE,
         system: buildSystemPrompt(context),
         messages: coreMessages,
         onFinish: async ({ text }) => {
@@ -96,6 +108,10 @@ export async function POST(req: Request) {
       });
 
       writer.merge(result.toUIMessageStream());
+    },
+    onError: (error) => {
+      console.error("[/api/chat] stream error:", error);
+      return "Sorry — I couldn't generate a response. The AI service may be temporarily unavailable. Please try again in a moment.";
     },
   });
 

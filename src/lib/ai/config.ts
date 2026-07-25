@@ -9,6 +9,10 @@ export const LLM_CONFIG = {
   model: process.env.LLM_MODEL as string | undefined,
 };
 
+// Low temperature keeps answers grounded in the retrieved context rather than
+// improvising — important for RAG faithfulness, especially on smaller models.
+export const LLM_TEMPERATURE = Number(process.env.LLM_TEMPERATURE ?? 0.3);
+
 export const EMBEDDING_CONFIG = {
   provider: (process.env.EMBEDDING_PROVIDER ?? "ollama") as EmbeddingProvider,
   model: process.env.EMBEDDING_MODEL as string | undefined,

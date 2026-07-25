@@ -57,6 +57,6 @@ export async function deleteChunksByIds(
   const index = getPineconeIndex(userId);
   const BATCH = 100;
   for (let i = 0; i < pineconeIds.length; i += BATCH) {
-    await index.deleteMany(pineconeIds.slice(i, i + BATCH));
+    await index.deleteMany({ ids: pineconeIds.slice(i, i + BATCH) });
   }
 }

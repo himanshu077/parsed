@@ -1,5 +1,6 @@
 import * as cheerio from "cheerio";
 import { extractPageData } from "./extractor";
+import { safeFetch } from "./url-guard";
 import type { PageData } from "./extractor";
 
 function normalizeUrl(raw: string): string {
@@ -69,7 +70,7 @@ export async function crawlAndExtract(
 
     const batchResults = await Promise.allSettled(
       batch.map(async (pageUrl) => {
-        const res = await fetch(pageUrl, {
+        const res = await safeFetch(pageUrl, {
           headers: { "User-Agent": "Parsed-Crawler/1.0 (document indexer)" },
           signal: AbortSignal.timeout(12000),
         });
