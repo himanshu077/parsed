@@ -7,6 +7,7 @@
     "build:widget": "cd widget && npm ci && npm run build && cp dist/parsed-widget.js ../public/widget.js",
     "build": "npm run build:widget && next build",
     "start": "concurrently \"next start\" \"npm run inngest\"",
+    "start:next": "next start",
     "lint": "eslint",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
