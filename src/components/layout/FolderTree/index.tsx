@@ -168,8 +168,10 @@ function FolderNode({ folder, depth = 0 }: { folder: FolderWithChildren; depth?:
   const [subDialogOpen, setSubDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
-  // Indent sub-levels by shifting the link content left padding
-  const linkStyle = depth > 0 ? { paddingLeft: `${depth * 12}px` } : undefined;
+  // Indent per depth. Base 8px matches the button's default left padding, then
+  // add 16px per level so nesting is clearly visible (inline paddingLeft
+  // overrides the base, so it must include it).
+  const linkStyle = { paddingLeft: `${8 + depth * 16}px` };
 
   return (
     <>
@@ -178,7 +180,7 @@ function FolderNode({ folder, depth = 0 }: { folder: FolderWithChildren; depth?:
           <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={isActive} tooltip={folder.name}>
               <Link href={`/folders/${folder.id}`} style={linkStyle}>
-                {depth === 0 && <FolderIcon />}
+                <FolderIcon />
                 <span>{folder.name}</span>
               </Link>
             </SidebarMenuButton>
@@ -188,7 +190,7 @@ function FolderNode({ folder, depth = 0 }: { folder: FolderWithChildren; depth?:
               onClick={() => setDeleteDialogOpen(true)}
               title="Delete folder"
             >
-              <Trash2 className="size-3" />
+              <Trash2 className="size-3 text-destructive" />
               <span className="sr-only">Delete {folder.name}</span>
             </SidebarMenuAction>
             <SidebarMenuAction

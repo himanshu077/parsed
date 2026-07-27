@@ -12,9 +12,11 @@ export function AppShell({ user, children }: AppShellProps) {
   return (
     <SidebarProvider>
       <AppSidebar user={user} />
-      <SidebarInset>
+      <SidebarInset className="h-svh overflow-hidden">
         <Header />
-        {children}
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+          {children}
+        </div>
       </SidebarInset>
     </SidebarProvider>
   );

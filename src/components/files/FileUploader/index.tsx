@@ -4,7 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import { Upload, X, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { generateId } from "@/lib/utils";
+import { cn, generateId } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,9 +39,11 @@ interface QueuedFile {
 interface FileUploaderProps {
   /** Pre-select a folder (e.g. when uploading from inside a folder view) */
   defaultFolderId?: string;
+  /** Render a shorter, single-row drop zone (e.g. on the dashboard) */
+  compact?: boolean;
 }
 
-export function FileUploader({ defaultFolderId }: FileUploaderProps) {
+export function FileUploader({ defaultFolderId, compact }: FileUploaderProps) {
   const qc = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -167,18 +169,42 @@ export function FileUploader({ defaultFolderId }: FileUploaderProps) {
       <div
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
-        className="flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed p-10 text-center transition-colors hover:border-primary hover:bg-accent/40 cursor-pointer"
+        className={cn(
+          "cursor-pointer rounded-xl border-2 border-dashed transition-colors hover:border-primary hover:bg-accent/40",
+          compact
+            ? "flex items-center gap-4 p-4"
+            : "flex flex-col items-center justify-center gap-3 p-10 text-center",
+        )}
         onClick={() => inputRef.current?.click()}
         role="button"
         tabIndex={0}
         onKeyDown={(e) => e.key === "Enter" && inputRef.current?.click()}
       >
-        <Upload className="size-8 text-muted-foreground" />
-        <div>
-          <p className="font-medium">Drop files here or click to upload</p>
-          <p className="text-sm text-muted-foreground mt-1">PDF, DOCX, TXT, MD — up to 50 MB each</p>
+        <div
+          className={cn(
+            "flex shrink-0 items-center justify-center rounded-lg text-muted-foreground",
+            compact ? "size-10 bg-muted" : "",
+          )}
+        >
+          <Upload className={compact ? "size-5" : "size-8"} />
         </div>
-        <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}>
+        <div className={cn("min-w-0", compact ? "flex-1 text-left" : "")}>
+          <p className="font-medium">
+            {compact ? "Drop files or click to upload" : "Drop files here or click to upload"}
+          </p>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            PDF, DOCX, TXT, MD — up to 50 MB each
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="shrink-0"
+          onClick={(e) => {
+            e.stopPropagation();
+            inputRef.current?.click();
+          }}
+        >
           Choose files
         </Button>
       </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X } from "lucide-react";
+import { FileText, X } from "lucide-react";
 import { FileCard } from "@/components/files/FileCard";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -27,8 +27,11 @@ export function FileList({ folderId }: FileListProps) {
 
   if (files.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-        No files yet. Upload your first document to get started.
+      <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed p-10 text-center">
+        <FileText className="size-8 text-muted-foreground/40" />
+        <p className="text-sm text-muted-foreground">
+          No files yet. Upload your first document to get started.
+        </p>
       </div>
     );
   }

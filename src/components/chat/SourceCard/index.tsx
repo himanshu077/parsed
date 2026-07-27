@@ -12,53 +12,25 @@ const TYPE_COLORS: Record<string, string> = {
   web: "bg-green-100 text-green-500",
 };
 
-function formatSize(bytes: number): string {
-  if (!bytes) return "";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
 interface Props {
   source: Source;
 }
 
 export function SourceCard({ source }: Props) {
   const colorClass = TYPE_COLORS[source.fileType] ?? "bg-muted text-muted-foreground";
-  const sizeLabel = formatSize(source.size);
 
   return (
-    <div className="flex flex-col gap-1.5 rounded-lg border bg-card px-3 py-2.5 w-56 shrink-0">
-      <div className="flex items-center gap-2">
-        <div className={cn("flex size-6 shrink-0 items-center justify-center rounded-md", colorClass)}>
-          <FileText className="size-3" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-xs font-medium leading-tight">{source.fileName}</p>
-          <p className="text-[11px] text-muted-foreground">
-            {source.fileType.toUpperCase()}
-            {sizeLabel && <span className="ml-1.5">{sizeLabel}</span>}
-          </p>
-        </div>
+    <div
+      title={source.preview || source.fileName}
+      className="inline-flex max-w-[220px] items-center gap-1.5 rounded-full border bg-card px-2 py-1 transition-colors hover:border-primary/40 hover:bg-accent/40"
+    >
+      <div className={cn("flex size-4 shrink-0 items-center justify-center rounded", colorClass)}>
+        <FileText className="size-2.5" />
       </div>
-
-      {source.pageUrl && (() => {
-        try {
-          return (
-            <p className="truncate text-[11px] text-muted-foreground/70">
-              {new URL(source.pageUrl).pathname || "/"}
-            </p>
-          );
-        } catch {
-          return null;
-        }
-      })()}
-
-      {source.preview && (
-        <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2">
-          {source.preview}
-        </p>
-      )}
+      <span className="truncate text-xs font-medium leading-none">{source.fileName}</span>
+      <span className="shrink-0 text-[10px] uppercase leading-none text-muted-foreground">
+        {source.fileType}
+      </span>
     </div>
   );
 }

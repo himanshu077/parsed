@@ -1,10 +1,13 @@
 import { desc, eq } from "drizzle-orm";
 import { headers } from "next/headers";
+import { after } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/database";
 import { webCrawlJobs } from "@/db/schema";
 import { inngest } from "@/lib/inngest";
 import { assertPublicUrl } from "@/lib/url-guard";
+import { runWebCrawl, markCrawlError } from "@/lib/web-crawl";
+import { INNGEST_DISABLED } from "@/lib/file-processing";
 
 export async function POST(req: Request) {
   try {
@@ -38,10 +41,35 @@ export async function POST(req: Request) {
       .values({ userId: session.user.id, rootUrl, status: "pending" })
       .returning();
 
-    await inngest.send({
-      name: "url/crawl.start",
-      data: { jobId: job.id, userId: session.user.id, rootUrl, maxPages },
-    });
+    // Kick off the crawl. In prod, dispatch to the Inngest background job.
+    // Locally (Inngest dev-server binary blocked), run inline via after().
+    try {
+      if (INNGEST_DISABLED) {
+        const jobId = job.id;
+        const userId = session.user.id;
+        after(() =>
+          runWebCrawl(jobId, userId, rootUrl, maxPages).catch((e) => {
+            console.error("[import-url] inline crawl failed:", e);
+            return markCrawlError(
+              jobId,
+              e instanceof Error ? e.message : "Crawl failed",
+            );
+          }),
+        );
+      } else {
+        await inngest.send({
+          name: "url/crawl.start",
+          data: { jobId: job.id, userId: session.user.id, rootUrl, maxPages },
+        });
+      }
+    } catch (e) {
+      // Dispatch failed — mark the job errored instead of leaving it "pending".
+      await markCrawlError(
+        job.id,
+        e instanceof Error ? e.message : "Failed to start crawl",
+      );
+      return Response.json({ error: "Failed to start crawl" }, { status: 502 });
+    }
 
     return Response.json({ jobId: job.id }, { status: 201 });
   } catch {

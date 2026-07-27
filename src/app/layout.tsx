@@ -30,7 +30,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <ThemeProvider attribute="class" defaultTheme="light" disableTransitionOnChange>
-          <NextTopLoader showSpinner={false} />
+          <NextTopLoader showSpinner={false} color="#e3e3e3" />
           <QueryProvider>
             {children}
             <Toaster position="bottom-right" richColors />

@@ -21,9 +21,16 @@ import type { DeleteFolderStrategy } from "@/types";
 interface Props {
   folderId: string;
   folderName: string;
+  variant?: React.ComponentProps<typeof Button>["variant"];
+  className?: string;
 }
 
-export function DeleteFolderButton({ folderId, folderName }: Props) {
+export function DeleteFolderButton({
+  folderId,
+  folderName,
+  variant = "destructive",
+  className,
+}: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [strategy, setStrategy] = useState<DeleteFolderStrategy | null>(null);
@@ -47,7 +54,12 @@ export function DeleteFolderButton({ folderId, folderName }: Props) {
 
   return (
     <>
-      <Button variant="destructive" size="sm" onClick={() => setOpen(true)}>
+      <Button
+        variant={variant}
+        size="sm"
+        className={className}
+        onClick={() => setOpen(true)}
+      >
         <Trash2 className="mr-2 size-4" />
         Delete folder
       </Button>

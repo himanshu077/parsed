@@ -65,7 +65,7 @@ function getDescendantIds(folderId: string, allFolders: Folder[]): string[] {
   return ids;
 }
 
-function toUIMessages(rows: { id: string; role: string; content: string; sources: string | null }[]): UIMessage[] {
+function toUIMessages(rows: { id: string; role: string; content: string; sources: string | null; editedAt?: string | null }[]): UIMessage[] {
   return rows.map((row) => {
     const parts: UIMessage["parts"] = [];
     if (row.role === "assistant" && row.sources) {
@@ -76,7 +76,12 @@ function toUIMessages(rows: { id: string; role: string; content: string; sources
       } catch {}
     }
     parts.push({ type: "text", text: row.content });
-    return { id: row.id, role: row.role as "user" | "assistant", parts };
+    return {
+      id: row.id,
+      role: row.role as "user" | "assistant",
+      parts,
+      ...(row.editedAt ? { metadata: { editedAt: row.editedAt } } : {}),
+    };
   });
 }
 
@@ -111,7 +116,7 @@ function ChatPageContent() {
       const res = await fetch(`/api/chats/${chatId}/messages`);
       if (!res.ok) return { messages: [] as UIMessage[], hasMore: false, cursor: null };
       const { messages: rows, hasMore } = await res.json() as {
-        messages: { id: string; role: string; content: string; sources: string | null; createdAt: string }[];
+        messages: { id: string; role: string; content: string; sources: string | null; editedAt: string | null; createdAt: string }[];
         hasMore: boolean;
       };
       return {
@@ -164,7 +169,7 @@ function ChatPageContent() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] flex-col overflow-hidden">
+    <div className="flex h-full flex-col overflow-hidden">
       <ChatScopeBar
         selectedFiles={selectedFiles}
         selectedFolder={selectedFolder}

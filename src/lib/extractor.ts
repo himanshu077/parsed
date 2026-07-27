@@ -196,7 +196,12 @@ export function extractPageData(html: string, url: string): PageData {
 
 export function compileSiteMarkdown(rootUrl: string, pages: PageData[]): string {
   const domain = new URL(rootUrl).hostname;
-  const crawledAt = new Date().toISOString();
+  const crawledAt =
+    new Date().toLocaleString("en-US", {
+      dateStyle: "long",
+      timeStyle: "short",
+      timeZone: "UTC",
+    }) + " UTC";
 
   const allEmails = [...new Set(pages.flatMap((p) => p.emails))];
   const allPhones = [...new Set(pages.flatMap((p) => p.phones))];

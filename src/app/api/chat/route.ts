@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { headers } from "next/headers";
 import {
   createUIMessageStream,
@@ -22,6 +22,7 @@ async function ensureChatAndSaveUserMessage(
   userId: string,
   query: string,
   chatId?: string,
+  edited = false,
 ): Promise<string> {
   let id = chatId;
   if (id) {
@@ -40,22 +41,68 @@ async function ensureChatAndSaveUserMessage(
       .returning();
     id = newChat.id;
   }
-  await db.insert(chatMessages).values({ chatId: id!, role: "user", content: query });
+  await db.insert(chatMessages).values({
+    chatId: id!,
+    role: "user",
+    content: query,
+    editedAt: edited ? new Date() : null,
+  });
   return id!;
+}
+
+/**
+ * Deletes the N most-recent messages of a chat. Called when a user edits a prior
+ * message: the edited message and everything after it (always the newest N) are
+ * removed before the edited turn is re-saved and regenerated — kept atomic on the
+ * server so the client never shows a torn/blank intermediate state.
+ */
+async function deleteLastMessages(
+  chatId: string,
+  userId: string,
+  n: number,
+): Promise<void> {
+  const [chat] = await db
+    .select({ id: chats.id })
+    .from(chats)
+    .where(and(eq(chats.id, chatId), eq(chats.userId, userId)))
+    .limit(1);
+  if (!chat) return;
+
+  const recent = await db
+    .select({ id: chatMessages.id })
+    .from(chatMessages)
+    .where(eq(chatMessages.chatId, chatId))
+    .orderBy(desc(chatMessages.createdAt))
+    .limit(n);
+
+  if (recent.length > 0) {
+    await db.delete(chatMessages).where(
+      inArray(
+        chatMessages.id,
+        recent.map((r) => r.id),
+      ),
+    );
+  }
 }
 
 export async function POST(req: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  let body: { messages?: UIMessage[]; fileIds?: string[]; chatId?: string };
+  let body: {
+    messages?: UIMessage[];
+    fileIds?: string[];
+    chatId?: string;
+    deleteLast?: number;
+  };
   try {
     body = await req.json();
   } catch {
     return Response.json({ error: "Invalid request body" }, { status: 400 });
   }
 
-  const { messages, fileIds, chatId } = body;
+  const { messages, fileIds, chatId, deleteLast } = body;
+  const isEdit = typeof deleteLast === "number" && deleteLast > 0;
   if (!Array.isArray(messages) || messages.length === 0) {
     return Response.json({ error: "No messages provided" }, { status: 400 });
   }
@@ -72,6 +119,12 @@ export async function POST(req: Request) {
 
   const stream = createUIMessageStream({
     execute: async ({ writer }) => {
+      // On edit, remove the old tail (edited message + everything after) before
+      // saving the new turn, so the conversation stays consistent.
+      if (isEdit && chatId) {
+        await deleteLastMessages(chatId, userId, deleteLast!);
+      }
+
       // Retrieval and DB setup (chat record + user message) run in parallel.
       // Any failure here is caught by onError below and surfaced to the user as
       // an in-chat message instead of a hard 500.
@@ -79,7 +132,7 @@ export async function POST(req: Request) {
         ANSWER_MODE === "extractive"
           ? retrieveExtractiveAnswer(query, userId, { fileIds })
           : retrieveContext(query, userId, { fileIds }),
-        ensureChatAndSaveUserMessage(userId, query, chatId),
+        ensureChatAndSaveUserMessage(userId, query, chatId, isEdit),
       ]);
 
       const sources = retrieval.sources;
@@ -108,23 +161,40 @@ export async function POST(req: Request) {
         const { textStream } = await streamTextWithFallback({
           system: buildSystemPrompt(retrieval.context),
           messages: coreMessages,
+          // Cancels the underlying LLM call when the client presses stop, so the
+          // provider stops generating (and billing) instead of running to the end.
+          abortSignal: req.signal,
         });
-        for await (const delta of textStream) {
-          full += delta;
-          writer.write({ type: "text-delta", id, delta });
+        try {
+          for await (const delta of textStream) {
+            full += delta;
+            writer.write({ type: "text-delta", id, delta });
+          }
+        } catch (err) {
+          // A client stop aborts generation — keep whatever was produced. Any
+          // other error is real and re-thrown to onError.
+          const aborted =
+            req.signal.aborted ||
+            (err instanceof Error && err.name === "AbortError");
+          if (!aborted) throw err;
         }
       }
 
-      writer.write({ type: "text-end", id });
+      if (!req.signal.aborted) {
+        writer.write({ type: "text-end", id });
+      }
 
-      // Persist only a fully-produced response; a mid-stream failure throws
-      // above and is handled by onError instead of saving a partial answer.
-      await db.insert(chatMessages).values({
-        chatId: resolvedChatId,
-        role: "assistant",
-        content: full,
-        sources: sources.length > 0 ? JSON.stringify(sources) : null,
-      });
+      // Persist the produced answer — including a partial one kept after a stop.
+      // Skip empty content so stopping before the first token leaves no blank
+      // assistant message.
+      if (full.trim().length > 0) {
+        await db.insert(chatMessages).values({
+          chatId: resolvedChatId,
+          role: "assistant",
+          content: full,
+          sources: sources.length > 0 ? JSON.stringify(sources) : null,
+        });
+      }
     },
     onError: (error) => {
       console.error("[/api/chat] stream error:", error);
