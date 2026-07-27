@@ -8,16 +8,20 @@ import {
 } from "./config";
 
 const BATCH_SIZE = 100;
+// Ollama runs locally on modest hardware. Large embedding batches have been
+// observed to crash the local server mid-crawl (OOM → ECONNREFUSED), so send it
+// far fewer texts per request than hosted providers, which handle 100 fine.
+const OLLAMA_BATCH_SIZE = 16;
 
 // Embeddings intentionally do NOT fail over to a different provider: the vector
 // index is tied to one embedding model's dimensions and vector space, so a
 // query embedded by a different model can't match stored vectors. The correct
-// resilience here is a bounded retry against the SAME provider for transient
-// network blips.
+// resilience here is a bounded retry against the SAME provider — with enough
+// backoff to survive a brief local-server restart.
 async function withRetry<T>(
   fn: () => Promise<T>,
-  retries = 2,
-  baseDelayMs = 500,
+  retries = 3,
+  baseDelayMs = 1000,
 ): Promise<T> {
   let lastError: unknown;
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -36,11 +40,12 @@ async function withRetry<T>(
 export async function embedTexts(texts: string[]): Promise<number[][]> {
   const { provider, model } = EMBEDDING_CONFIG;
   const resolvedModel = model ?? DEFAULT_EMBEDDING_MODELS[provider];
+  const batchSize = provider === "ollama" ? OLLAMA_BATCH_SIZE : BATCH_SIZE;
 
   if (provider === "google") {
     const embeddings: number[][] = [];
-    for (let i = 0; i < texts.length; i += BATCH_SIZE) {
-      const batch = texts.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < texts.length; i += batchSize) {
+      const batch = texts.slice(i, i + batchSize);
       const { embeddings: batchEmbeddings } = await withRetry(() =>
         embedMany({
           model: google.embedding(resolvedModel),
@@ -60,8 +65,8 @@ export async function embedTexts(texts: string[]): Promise<number[][]> {
       : new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
   const embeddings: number[][] = [];
-  for (let i = 0; i < texts.length; i += BATCH_SIZE) {
-    const batch = texts.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < texts.length; i += batchSize) {
+    const batch = texts.slice(i, i + batchSize);
     const response = await withRetry(() =>
       client.embeddings.create({
         model: resolvedModel,

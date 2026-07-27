@@ -1,27 +1,14 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, count, eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { ChevronRight, HomeIcon, MessageSquare } from "lucide-react";
+import { MessageSquare } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/database";
-import { folders } from "@/db/schema";
+import { folders, files } from "@/db/schema";
 import { Button } from "@/components/ui/button";
 import { FolderCard, NewSubfolderButton, DeleteFolderButton, EmbedButton } from "@/components/folders";
 import { FileList, FileUploader } from "@/components/files";
-import type { Folder } from "@/db/schema";
-
-function buildBreadcrumb(allFolders: Folder[], current: Folder): Folder[] {
-  const path: Folder[] = [current];
-  let node = current;
-  while (node.parentId) {
-    const parent = allFolders.find((f) => f.id === node.parentId);
-    if (!parent) break;
-    path.unshift(parent);
-    node = parent;
-  }
-  return path;
-}
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -45,62 +32,58 @@ export default async function FolderPage({ params }: Props) {
   if (!current) notFound();
 
   const subfolders = allFolders.filter((f) => f.parentId === id);
-  const breadcrumb = buildBreadcrumb(allFolders, current);
+
+  const [fileCountRow] = await db
+    .select({ value: count() })
+    .from(files)
+    .where(and(eq(files.userId, userId), eq(files.folderId, id)));
+  const fileCount = fileCountRow?.value ?? 0;
 
   return (
-    <div className="flex flex-1 flex-col gap-8 p-6">
-      {/* Breadcrumb */}
-      <nav className="flex items-center gap-1 text-sm text-muted-foreground">
-        <Link href="/dashboard" className="flex items-center gap-1 transition-colors hover:text-foreground">
-          <HomeIcon className="size-3.5" />
-          <span>Home</span>
-        </Link>
-        {breadcrumb.map((crumb) => (
-          <span key={crumb.id} className="flex items-center gap-1">
-            <ChevronRight className="size-3.5" />
-            <Link
-              href={`/folders/${crumb.id}`}
-              className={
-                crumb.id === id
-                  ? "font-medium text-foreground"
-                  : "transition-colors hover:text-foreground"
-              }
-            >
-              {crumb.name}
-            </Link>
-          </span>
-        ))}
-      </nav>
-
-      {/* Heading */}
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold">{current.name}</h1>
-        <div className="flex items-center gap-2">
-          <DeleteFolderButton folderId={id} folderName={current.name} />
-          <NewSubfolderButton parentId={id} />
-          <EmbedButton folderId={id} folderName={current.name} />
-          <Button asChild variant="outline" size="sm">
+    <div className="mx-auto w-full max-w-6xl space-y-8 p-6">
+      {/* Heading + actions */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="truncate text-2xl font-semibold tracking-tight">
+            {current.name}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {subfolders.length} subfolder{subfolders.length !== 1 ? "s" : ""} ·{" "}
+            {fileCount} file{fileCount !== 1 ? "s" : ""}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button asChild size="sm" className="gap-1.5">
             <Link href={`/chat?folderId=${id}`}>
-              <MessageSquare className="mr-2 size-4" />
+              <MessageSquare className="size-4" />
               Ask about this folder
             </Link>
           </Button>
+          <NewSubfolderButton parentId={id} />
+          <EmbedButton folderId={id} folderName={current.name} />
+          <DeleteFolderButton
+            folderId={id}
+            folderName={current.name}
+            variant="ghost"
+            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+          />
         </div>
       </div>
 
       {/* Upload */}
       <section className="space-y-3">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Upload
-        </h2>
-        <FileUploader defaultFolderId={id} />
+        <h2 className="text-sm font-semibold">Upload</h2>
+        <FileUploader defaultFolderId={id} compact />
       </section>
 
       {/* Subfolders */}
       {subfolders.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Folders
+          <h2 className="text-sm font-semibold">
+            Folders{" "}
+            <span className="font-normal text-muted-foreground">
+              · {subfolders.length}
+            </span>
           </h2>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {subfolders.map((sub) => (
@@ -112,8 +95,9 @@ export default async function FolderPage({ params }: Props) {
 
       {/* Files */}
       <section className="space-y-3">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Files
+        <h2 className="text-sm font-semibold">
+          Files{" "}
+          <span className="font-normal text-muted-foreground">· {fileCount}</span>
         </h2>
         <FileList folderId={id} />
       </section>

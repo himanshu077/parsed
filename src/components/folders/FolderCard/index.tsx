@@ -67,13 +67,15 @@ export function FolderCard({ folder }: FolderCardProps) {
   return (
     <>
       <div
-        className="group relative flex cursor-pointer items-center gap-3 rounded-lg border p-4 transition-colors hover:bg-accent"
+        className="group relative flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition-all hover:border-primary/40 hover:bg-accent/40 hover:shadow-sm"
         onClick={() => router.push(`/folders/${folder.id}`)}
         role="button"
         tabIndex={0}
         onKeyDown={(e) => e.key === "Enter" && router.push(`/folders/${folder.id}`)}
       >
-        <FolderIcon className="size-8 shrink-0 text-muted-foreground" />
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground transition-colors group-hover:text-foreground">
+          <FolderIcon className="size-5" />
+        </div>
         <div className="min-w-0 flex-1">
           <p className="truncate font-medium">{folder.name}</p>
           <p className="text-xs text-muted-foreground">

@@ -27,6 +27,8 @@ export interface FallbackStream {
 export async function streamTextWithFallback(params: {
   system: string;
   messages: ModelMessage[];
+  /** Aborts server-side generation when the client stops the response. */
+  abortSignal?: AbortSignal;
 }): Promise<FallbackStream> {
   const chain = getLLMProviderChain();
   let lastError: unknown;
@@ -39,6 +41,7 @@ export async function streamTextWithFallback(params: {
         // Fail over quickly rather than exhausting long internal retries on a
         // dead host, while still tolerating a single transient blip.
         maxRetries: 1,
+        abortSignal: params.abortSignal,
         system: params.system,
         messages: params.messages,
       });
@@ -57,6 +60,13 @@ export async function streamTextWithFallback(params: {
 
       return { provider, textStream: stream() };
     } catch (error) {
+      // A user-initiated stop (abort) must not fail over to another provider.
+      if (
+        params.abortSignal?.aborted ||
+        (error instanceof Error && error.name === "AbortError")
+      ) {
+        throw error;
+      }
       lastError = error;
       console.error(
         `[ai] LLM provider "${provider}" failed to start; falling over:`,

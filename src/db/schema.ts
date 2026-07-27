@@ -137,6 +137,7 @@ export const chatMessages = pgTable(
     role: text("role").notNull(), // user | assistant
     content: text("content").notNull(),
     sources: text("sources"), // JSON string, null for user messages
+    editedAt: timestamp("edited_at"), // set when a user message was edited + resent
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => ({
