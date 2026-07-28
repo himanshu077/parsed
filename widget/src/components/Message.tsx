@@ -1,5 +1,7 @@
+import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { Check, Copy } from "lucide-react";
 import { TypingIndicator } from "./TypingIndicator";
 import { cn } from "@/lib/utils";
 import type { Message as MessageType } from "@/types";
@@ -16,24 +18,52 @@ function fixMarkdown(content: string): string {
   return fixed;
 }
 
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // clipboard may be blocked on insecure origins — ignore
+    }
+  };
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      title="Copy"
+      className="flex h-6 w-6 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-200/70 hover:text-zinc-700"
+    >
+      {copied ? (
+        <Check className="h-3.5 w-3.5 text-green-600" />
+      ) : (
+        <Copy className="h-3.5 w-3.5" />
+      )}
+    </button>
+  );
+}
+
 export function Message({ message, primaryColor }: Props) {
   const isUser = message.role === "user";
+  const showCopy = !isUser && !message.isStreaming && !!message.content;
 
   return (
-    <div className={cn("flex flex-col gap-1", isUser ? "items-end" : "items-start")}>
+    <div className={cn("group flex w-full min-w-0 flex-col gap-1", isUser ? "items-end" : "items-start")}>
       <div
         className={cn(
-          "max-w-[80%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed",
+          "max-w-[85%] min-w-0 overflow-hidden break-words rounded-2xl text-sm leading-relaxed",
           isUser
-            ? "rounded-br-sm text-white"
-            : "rounded-bl-sm bg-zinc-100 text-zinc-800",
+            ? "rounded-br-sm px-3.5 py-2.5 text-white"
+            : "rounded-bl-sm bg-white px-4 py-3 text-zinc-800 shadow-sm shadow-black/5 ring-1 ring-black/[0.04]",
         )}
         style={isUser ? { backgroundColor: primaryColor } : undefined}
       >
         {message.isStreaming && !message.content ? (
           <TypingIndicator />
         ) : isUser ? (
-          <span className="whitespace-pre-wrap break-words">{message.content}</span>
+          <span className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{message.content}</span>
         ) : (
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
@@ -44,12 +74,12 @@ export function Message({ message, primaryColor }: Props) {
               ol: ({ children }) => <ol className="mb-2 list-decimal pl-4 space-y-1">{children}</ol>,
               li: ({ children }) => <li className="leading-relaxed">{children}</li>,
               pre: ({ children }) => (
-                <pre className="rounded-md bg-white/60 px-3 py-2 font-mono text-xs my-2 overflow-x-auto whitespace-pre">
+                <pre className="rounded-md bg-zinc-100 px-3 py-2 font-mono text-xs my-2 overflow-x-auto whitespace-pre">
                   {children}
                 </pre>
               ),
               code: ({ children, className }) => (
-                <code className={cn("font-mono text-xs", !className && "rounded bg-white/60 px-1 py-0.5")}>
+                <code className={cn("font-mono text-xs", !className && "rounded bg-zinc-100 px-1 py-0.5")}>
                   {children}
                 </code>
               ),
@@ -63,7 +93,7 @@ export function Message({ message, primaryColor }: Props) {
               h5: ({ children }) => <h5 className="text-xs font-semibold mb-1 mt-2 first:mt-0">{children}</h5>,
               h6: ({ children }) => <h6 className="text-xs font-medium mb-1 mt-2 first:mt-0">{children}</h6>,
               a: ({ href, children }) => (
-                <a href={href} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:opacity-80">
+                <a href={href} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:opacity-80 [overflow-wrap:anywhere]">
                   {children}
                 </a>
               ),
@@ -87,6 +117,11 @@ export function Message({ message, primaryColor }: Props) {
           />
         )}
       </div>
+      {showCopy && (
+        <div className="pl-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+          <CopyButton text={message.content} />
+        </div>
+      )}
     </div>
   );
 }

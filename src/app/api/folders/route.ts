@@ -16,8 +16,9 @@ export async function GET() {
       .orderBy(asc(folders.name));
 
     return Response.json(result);
-  } catch {
-    return Response.json({ error: "Internal server error" }, { status: 500 });
+  } catch (e) {
+    console.error("[folders] GET failed:", e);
+    return Response.json({ error: "Failed to load folders" }, { status: 500 });
   }
 }
 
@@ -53,7 +54,8 @@ export async function POST(req: Request) {
       .returning();
 
     return Response.json(newFolder, { status: 201 });
-  } catch {
-    return Response.json({ error: "Internal server error" }, { status: 500 });
+  } catch (e) {
+    console.error("[folders] POST failed:", e);
+    return Response.json({ error: "Failed to create folder" }, { status: 500 });
   }
 }

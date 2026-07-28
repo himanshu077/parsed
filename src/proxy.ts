@@ -2,7 +2,7 @@ import { betterFetch } from "@better-fetch/fetch";
 import type { Session } from "better-auth/types";
 import { type NextRequest, NextResponse } from "next/server";
 
-const protectedPaths = ["/dashboard", "/files", "/folders", "/chat"];
+const protectedPaths = ["/dashboard", "/files", "/folders", "/chat", "/import", "/playground"];
 const protectedApiPaths = ["/api/files", "/api/folders", "/api/chat"];
 const authPaths = [
   "/auth/sign-in",

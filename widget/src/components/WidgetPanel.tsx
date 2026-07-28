@@ -37,32 +37,32 @@ export function WidgetPanel({ config, messages, isStreaming, onSend, onClose }: 
   return (
     <div
       className={cn(
-        "pw-panel-enter flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl shadow-black/10",
+        "pw-panel-enter flex flex-col overflow-hidden rounded-2xl bg-white shadow-2xl shadow-black/25 ring-1 ring-black/5",
       )}
       style={{ width: "380px", height: "560px" }}
     >
       {/* Header */}
       <div
-        className="flex shrink-0 items-center justify-between px-4 py-3"
+        className="flex shrink-0 items-center justify-between px-4 py-3.5"
         style={{ backgroundColor: primaryColor }}
       >
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white/20">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/15">
             <Bot className="h-4 w-4 text-white" />
           </div>
-          <span className="text-sm font-semibold text-white">{title}</span>
+          <span className="truncate text-sm font-semibold text-white">{title}</span>
         </div>
         <button
           type="button"
           onClick={onClose}
-          className="flex h-7 w-7 items-center justify-center rounded-full text-white/70 transition-colors hover:bg-white/20 hover:text-white"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white/60 transition-colors hover:bg-white/15 hover:text-white"
         >
           <X className="h-4 w-4" />
         </button>
       </div>
 
       {/* Messages */}
-      <div className="pw-scroll flex flex-1 flex-col gap-3 overflow-y-auto px-4 py-3">
+      <div className="pw-scroll flex flex-1 flex-col gap-3 overflow-y-auto bg-zinc-50/60 px-4 py-4">
         {allMessages.map((msg) => (
           <Message key={msg.id} message={msg} primaryColor={primaryColor} />
         ))}

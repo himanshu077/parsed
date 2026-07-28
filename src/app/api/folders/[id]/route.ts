@@ -38,8 +38,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (!updated) return Response.json({ error: "Folder not found" }, { status: 404 });
 
     return Response.json(updated);
-  } catch {
-    return Response.json({ error: "Internal server error" }, { status: 500 });
+  } catch (e) {
+    console.error("[folders/:id] PUT failed:", e);
+    return Response.json({ error: "Failed to update folder" }, { status: 500 });
   }
 }
 
@@ -113,7 +114,8 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
       .where(and(eq(folders.id, id), eq(folders.userId, userId)));
 
     return new Response(null, { status: 204 });
-  } catch {
-    return Response.json({ error: "Internal server error" }, { status: 500 });
+  } catch (e) {
+    console.error("[folders/:id] DELETE failed:", e);
+    return Response.json({ error: "Failed to delete folder" }, { status: 500 });
   }
 }

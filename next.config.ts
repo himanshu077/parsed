@@ -7,6 +7,11 @@ const nextConfig: NextConfig = {
     root: path.resolve(__dirname),
   },
   serverExternalPackages: ["unpdf"],
+  experimental: {
+    // proxy.ts buffers request bodies; the default 10MB cap truncated large file
+    // uploads and corrupted the multipart body. Match the 50MB upload limit.
+    proxyClientMaxBodySize: "50mb",
+  },
   webpack: (config) => {
     // pdfjs-dist has a browser field of {canvas:false,fs:false,...} with no
     // string entry point, confusing bundlers. Point directly to the built file.

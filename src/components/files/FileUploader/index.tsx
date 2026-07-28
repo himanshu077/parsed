@@ -29,6 +29,43 @@ function formatBytes(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+/**
+ * Uploads via XHR (not fetch) so we get real upload-progress events.
+ * Resolves with the parsed JSON response; rejects with a friendly Error.
+ */
+function xhrUpload(
+  url: string,
+  formData: FormData,
+  onProgress: (loaded: number) => void,
+): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(e.loaded);
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve(JSON.parse(xhr.responseText));
+        } catch {
+          resolve({});
+        }
+      } else if (xhr.status === 413) {
+        reject(new Error("File too large for the server to accept"));
+      } else {
+        let msg = `Upload failed (HTTP ${xhr.status})`;
+        try {
+          msg = JSON.parse(xhr.responseText).error ?? msg;
+        } catch {}
+        reject(new Error(msg));
+      }
+    };
+    xhr.onerror = () => reject(new Error("Network error during upload"));
+    xhr.send(formData);
+  });
+}
+
 interface QueuedFile {
   file: File;
   id: string;
@@ -100,10 +137,13 @@ export function FileUploader({ defaultFolderId, compact }: FileUploaderProps) {
     setProgress(0);
 
     const pending = queue.filter((f) => f.status === "pending");
-    const total = pending.length;
-    let completed = 0;
     let succeeded = 0;
     let failed = 0;
+
+    // Overall progress is tracked by bytes across all pending files, so a single
+    // large file shows smooth 0→100% instead of jumping only when it completes.
+    const totalBytes = pending.reduce((sum, f) => sum + f.file.size, 0) || 1;
+    let uploadedBytes = 0;
 
     for (const item of pending) {
       setQueue((q) =>
@@ -116,27 +156,27 @@ export function FileUploader({ defaultFolderId, compact }: FileUploaderProps) {
         if (folderId) formData.append("folderId", folderId);
         formData.append("tags", JSON.stringify(tags));
 
-        const res = await fetch("/api/files", { method: "POST", body: formData });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error ?? "Upload failed");
-        }
+        await xhrUpload("/api/files", formData, (loaded) => {
+          setProgress(
+            Math.round(((uploadedBytes + loaded) / totalBytes) * 100),
+          );
+        });
 
+        uploadedBytes += item.file.size;
+        setProgress(Math.round((uploadedBytes / totalBytes) * 100));
         setQueue((q) =>
           q.map((f) => (f.id === item.id ? { ...f, status: "done" } : f)),
         );
         succeeded++;
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Upload failed";
+        uploadedBytes += item.file.size;
         setQueue((q) =>
           q.map((f) => (f.id === item.id ? { ...f, status: "error", error: msg } : f)),
         );
         toast.error(`${item.file.name}: ${msg}`);
         failed++;
       }
-
-      completed++;
-      setProgress(Math.round((completed / total) * 100));
     }
 
     setIsUploading(false);
