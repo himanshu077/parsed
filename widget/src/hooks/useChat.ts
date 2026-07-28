@@ -2,6 +2,19 @@ import { useState, useCallback, useRef } from "react";
 import { streamChat } from "@/lib/api";
 import type { Message, WidgetConfig } from "@/types";
 
+// crypto.randomUUID exists only in secure contexts (HTTPS/localhost).
+// Widgets embedded on plain http:// sites would otherwise throw here.
+function uid(): string {
+  try {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID();
+    }
+  } catch {
+    // fall through
+  }
+  return `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 export function useChat(config: WidgetConfig) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -12,11 +25,11 @@ export function useChat(config: WidgetConfig) {
       if (isStreaming || !text.trim()) return;
 
       const userMsg: Message = {
-        id: crypto.randomUUID(),
+        id: uid(),
         role: "user",
         content: text.trim(),
       };
-      const assistantId = crypto.randomUUID();
+      const assistantId = uid();
       assistantIdRef.current = assistantId;
 
       const assistantMsg: Message = {
