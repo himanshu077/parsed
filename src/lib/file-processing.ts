@@ -31,6 +31,11 @@ export async function runFileProcessing(
   fileId: string,
   userId: string,
 ): Promise<{ fileId: string; chunks: number }> {
+  const t0 = Date.now();
+  const log = (msg: string) =>
+    console.log(`[file-processing] ${fileId} +${Date.now() - t0}ms ${msg}`);
+  log("START");
+
   // ── Mark processing ─────────────────────────────────────────────────────────
   await db
     .update(files)
@@ -39,6 +44,7 @@ export async function runFileProcessing(
 
   const [file] = await db.select().from(files).where(eq(files.id, fileId)).limit(1);
   if (!file) throw new Error("File not found");
+  log(`loaded file type=${file.type} size=${file.size}`);
 
   await emit(fileId, { step: "download", message: "Downloading file…", progress: 10 });
 
@@ -46,18 +52,21 @@ export async function runFileProcessing(
   const res = await fetch(file.blobUrl);
   if (!res.ok) throw new Error("Failed to download file from storage");
   const buffer = await res.arrayBuffer();
+  log(`downloaded ${buffer.byteLength} bytes`);
 
   await emit(fileId, { step: "parse", message: "Extracting text…", progress: 25 });
 
   // ── Parse text ──────────────────────────────────────────────────────────────
   const text = await parseFile(buffer, file.type);
   if (!text.trim()) throw new Error("No text could be extracted from file");
+  log(`parsed text chars=${text.length}`);
 
   await emit(fileId, { step: "chunk", message: "Chunking text…", progress: 40 });
 
   // ── Chunk text ──────────────────────────────────────────────────────────────
   const chunks = await chunkText(text, file.type);
   if (chunks.length === 0) throw new Error("No chunks produced from file");
+  log(`chunked count=${chunks.length}`);
 
   await emit(fileId, { step: "resolve", message: "Resolving folder path…", progress: 50 });
 
@@ -91,7 +100,9 @@ export async function runFileProcessing(
   await emit(fileId, { step: "embed", message: `Embedding ${chunks.length} chunks…`, progress: 65 });
 
   // ── Embed all chunks ────────────────────────────────────────────────────────
+  log(`embedding ${chunks.length} chunks…`);
   const embeddings = await embedTexts(chunks);
+  log(`embedded ${embeddings.length} vectors dim=${embeddings[0]?.length}`);
 
   await emit(fileId, { step: "upsert", message: "Storing in vector DB…", progress: 85 });
 
@@ -113,6 +124,7 @@ export async function runFileProcessing(
     } satisfies ChunkMetadata,
   }));
   await upsertChunks(userId, vectors);
+  log(`upserted ${vectors.length} vectors to Pinecone`);
 
   await emit(fileId, { step: "save", message: "Saving to database…", progress: 95 });
 
@@ -125,6 +137,7 @@ export async function runFileProcessing(
   }));
   await db.insert(fileChunks).values(dbRows);
   await db.update(files).set({ status: "ready" }).where(eq(files.id, fileId));
+  log(`DONE status=ready chunks=${chunks.length}`);
 
   await emit(fileId, { step: "done", message: "Ready!", progress: 100, done: true });
 
