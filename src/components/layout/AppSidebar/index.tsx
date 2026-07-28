@@ -3,9 +3,15 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronsUpDown, Globe, LayoutDashboard, LogOut, MessageSquare } from "lucide-react";
+import {
+  ChevronsUpDown,
+  Globe,
+  LayoutDashboard,
+  LogOut,
+  MessageSquare,
+  TestTubeDiagonal,
+} from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Separator } from "@/components/ui/separator";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,6 +39,7 @@ const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Chat", href: "/chat", icon: MessageSquare },
   { label: "Import", href: "/import", icon: Globe },
+  { label: "Playground", href: "/playground", icon: TestTubeDiagonal },
 ];
 
 function getInitials(name: string) {
@@ -59,7 +66,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
   };
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible="icon" className="border-r border-zinc-700">
       {/* Logo */}
       <SidebarHeader>
         <SidebarMenu>
@@ -69,7 +76,9 @@ export function AppSidebar({ user }: AppSidebarProps) {
                 <div className="bg-primary text-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg text-sm font-bold">
                   P
                 </div>
-                <span className="text-base font-semibold tracking-tight">Parsed</span>
+                <span className="text-base font-semibold tracking-tight">
+                  Parsed
+                </span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -98,11 +107,6 @@ export function AppSidebar({ user }: AppSidebarProps) {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-
-        {/* Divider */}
-        <div className="px-3">
-          <Separator />
-        </div>
 
         {/* Folders */}
         <SidebarGroup>
@@ -141,10 +145,10 @@ export function AppSidebar({ user }: AppSidebarProps) {
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent
-                side="top"
+                side="right"
                 align="end"
-                sideOffset={8}
-                className="w-[--radix-dropdown-menu-trigger-width] min-w-56"
+                sideOffset={2}
+                className="w-[--radix-dropdown-menu-trigger-width] min-w-56 border border-zinc-700"
               >
                 <DropdownMenuLabel className="p-0 font-normal">
                   <div className="flex items-center gap-2 px-1 py-1.5">

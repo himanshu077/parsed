@@ -37,8 +37,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     if (!rows.length) return Response.json({ error: "File not found" }, { status: 404 });
 
     return Response.json(rows[0]);
-  } catch {
-    return Response.json({ error: "Internal server error" }, { status: 500 });
+  } catch (e) {
+    console.error("[files/:id] GET failed:", e);
+    return Response.json({ error: "Failed to load file" }, { status: 500 });
   }
 }
 
@@ -69,8 +70,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (!updated) return Response.json({ error: "File not found" }, { status: 404 });
 
     return Response.json(updated);
-  } catch {
-    return Response.json({ error: "Internal server error" }, { status: 500 });
+  } catch (e) {
+    console.error("[files/:id] PATCH failed:", e);
+    return Response.json({ error: "Failed to move file" }, { status: 500 });
   }
 }
 

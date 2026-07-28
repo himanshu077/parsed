@@ -67,8 +67,9 @@ export async function GET(req: Request) {
       .orderBy(desc(files.createdAt));
 
     return Response.json(rows);
-  } catch {
-    return Response.json({ error: "Internal server error" }, { status: 500 });
+  } catch (e) {
+    console.error("[files] GET failed:", e);
+    return Response.json({ error: "Failed to load files" }, { status: 500 });
   }
 }
 
@@ -178,7 +179,10 @@ export async function POST(req: Request) {
     }
 
     return Response.json(newFile, { status: 201 });
-  } catch {
-    return Response.json({ error: "Internal server error" }, { status: 500 });
+  } catch (e) {
+    console.error("[files] POST upload failed:", e);
+    const message =
+      e instanceof Error ? e.message : "Upload failed. Please try again.";
+    return Response.json({ error: `Upload failed: ${message}` }, { status: 500 });
   }
 }

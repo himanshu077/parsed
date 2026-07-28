@@ -23,7 +23,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     }
 
     return Response.json(job);
-  } catch {
-    return Response.json({ error: "Internal server error" }, { status: 500 });
+  } catch (e) {
+    console.error("[import-url/:id] GET failed:", e);
+    return Response.json({ error: "Failed to load import status" }, { status: 500 });
   }
 }

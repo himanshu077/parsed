@@ -41,7 +41,7 @@ export function ChatInput({ onSend, disabled, placeholder, primaryColor }: Props
   const canSend = value.trim().length > 0 && !disabled;
 
   return (
-    <div className="flex items-end gap-2 border-t border-zinc-200 bg-white px-3 py-3">
+    <div className="flex items-end gap-2 bg-white px-3 pb-3 pt-2">
       <textarea
         ref={textareaRef}
         rows={1}
@@ -52,12 +52,12 @@ export function ChatInput({ onSend, disabled, placeholder, primaryColor }: Props
         placeholder={placeholder}
         disabled={disabled}
         className={cn(
-          "flex-1 resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-800 outline-none placeholder:text-zinc-400",
-          "focus:border-zinc-300 focus:ring-0",
+          "flex-1 resize-none rounded-xl bg-zinc-100 px-3.5 py-2.5 text-sm text-zinc-800 outline-none placeholder:text-zinc-400",
+          "focus:bg-zinc-50 focus:ring-2 focus:ring-black/5",
           "disabled:cursor-not-allowed disabled:opacity-50",
           "transition-colors",
         )}
-        style={{ height: "38px", maxHeight: "112px" }}
+        style={{ height: "40px", maxHeight: "112px" }}
       />
       <button
         type="button"

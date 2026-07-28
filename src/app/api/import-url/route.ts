@@ -72,8 +72,9 @@ export async function POST(req: Request) {
     }
 
     return Response.json({ jobId: job.id }, { status: 201 });
-  } catch {
-    return Response.json({ error: "Internal server error" }, { status: 500 });
+  } catch (e) {
+    console.error("[import-url] POST failed:", e);
+    return Response.json({ error: "Failed to start import" }, { status: 500 });
   }
 }
 
@@ -90,7 +91,8 @@ export async function GET() {
       .limit(20);
 
     return Response.json(jobs);
-  } catch {
-    return Response.json({ error: "Internal server error" }, { status: 500 });
+  } catch (e) {
+    console.error("[import-url] GET failed:", e);
+    return Response.json({ error: "Failed to load import jobs" }, { status: 500 });
   }
 }
