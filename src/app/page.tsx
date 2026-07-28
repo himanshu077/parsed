@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/common";
 
 const FEATURES = [
   {
@@ -121,6 +122,7 @@ export default async function Home() {
             <a href="#use-cases" className="transition-colors hover:text-foreground">Use cases</a>
           </nav>
           <div className="flex items-center gap-2">
+            <ThemeToggle />
             {!isAuthed && (
               <Button asChild variant="ghost" size="sm">
                 <Link href="/auth/sign-in">Sign in</Link>

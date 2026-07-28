@@ -39,15 +39,23 @@ export function EmbedButton({ folderId, folderName }: Props) {
   };
 
   const generateToken = async () => {
+    const isRegenerate = !!token;
     setGenerating(true);
     try {
       const res = await fetch(`/api/folders/${folderId}/widget-token`, { method: "POST" });
       if (res.ok) {
         const data = await res.json();
         setToken(data.token);
+        toast.success(
+          isRegenerate
+            ? "Token regenerated — existing embeds now need the new script"
+            : "Embed script generated",
+        );
       } else {
         toast.error("Failed to generate token");
       }
+    } catch {
+      toast.error("Failed to generate token");
     } finally {
       setGenerating(false);
     }
@@ -72,9 +80,14 @@ export function EmbedButton({ folderId, folderName }: Props) {
     : "";
 
   const copy = async () => {
-    await navigator.clipboard.writeText(embedScript);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(embedScript);
+      setCopied(true);
+      toast.success("Embed script copied to clipboard");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Couldn't copy — please copy manually");
+    }
   };
 
   return (
