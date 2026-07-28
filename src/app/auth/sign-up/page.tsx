@@ -64,8 +64,8 @@ export default function SignUpPage() {
       setError(error.message ?? "Registration failed");
       return;
     }
-    toast.success("Account created successfully");
-    router.push("/dashboard");
+    toast.success("Account created — please sign in");
+    router.push("/auth/sign-in");
   };
 
   return (

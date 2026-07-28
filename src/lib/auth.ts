@@ -12,6 +12,9 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: false,
+    // Don't auto-create a session on signup — send the user to the sign-in page
+    // to log in explicitly.
+    autoSignIn: false,
     sendResetPassword: async ({ user, url }) => {
       await sendResetPasswordEmail({ to: user.email, url });
     },
