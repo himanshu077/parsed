@@ -150,15 +150,19 @@ export async function POST(req: Request) {
       if (INNGEST_DISABLED) {
         const fileId = newFile.id;
         const userId = session.user.id;
-        after(() =>
-          runFileProcessing(fileId, userId).catch((e) =>
-            markProcessingError(
+        console.log(`[files] queued inline processing for ${fileId} (INNGEST_DISABLED)`);
+        after(() => {
+          console.log(`[files] after() fired — starting processing for ${fileId}`);
+          return runFileProcessing(fileId, userId).catch((e) => {
+            console.error(`[files] processing FAILED for ${fileId}:`, e);
+            return markProcessingError(
               fileId,
               e instanceof Error ? e.message : "Processing failed",
-            ),
-          ),
-        );
+            );
+          });
+        });
       } else {
+        console.log(`[files] dispatching to Inngest for ${newFile.id}`);
         await inngest.send({
           name: "file/uploaded",
           data: { fileId: newFile.id, userId: session.user.id },
