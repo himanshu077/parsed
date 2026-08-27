@@ -8,7 +8,7 @@ import {
 import type { UIMessage, ModelMessage } from "ai";
 import { auth } from "@/lib/auth";
 import { retrieveContext, retrieveExtractiveAnswer, buildSystemPrompt } from "@/lib/rag";
-import { streamTextWithFallback, ANSWER_MODE } from "@/lib/ai";
+import { streamTextWithFallback, ANSWER_MODE, describeAiError } from "@/lib/ai";
 import { getUserAiConfig } from "@/lib/user-ai-config";
 import { db } from "@/lib/database";
 import { chats, chatMessages } from "@/db/schema";
@@ -167,15 +167,15 @@ export async function POST(req: Request) {
       writer.write({ type: "data-sources", data: sources });
 
       const id = crypto.randomUUID();
-      writer.write({ type: "text-start", id });
       let full = "";
 
       if ("answer" in retrieval) {
         // Extractive mode: stream the precomputed verbatim answer (no LLM).
+        writer.write({ type: "text-start", id });
         full = retrieval.answer;
         writer.write({ type: "text-delta", id, delta: full });
       } else {
-        // Generative mode: an LLM writes the answer, with provider failover.
+        // Generative mode: an LLM writes the answer, with model/provider failover.
         // Text chunks are written manually (rather than merging the SDK stream)
         // so failover can trigger on the first token if the primary is down.
         const coreMessages = messages
@@ -186,6 +186,9 @@ export async function POST(req: Request) {
             return [{ role: msg.role as "user" | "assistant", content: text }];
           }) as ModelMessage[];
 
+        // If every model/provider fails to start, this throws to onError before
+        // any text-start is emitted — so the client shows the error message
+        // alone, not an empty assistant bubble.
         const { textStream } = await streamTextWithFallback({
           system: buildSystemPrompt(retrieval.context),
           messages: coreMessages,
@@ -194,6 +197,7 @@ export async function POST(req: Request) {
           abortSignal: req.signal,
           llm: aiConfig.llm!,
         });
+        writer.write({ type: "text-start", id });
         try {
           for await (const delta of textStream) {
             full += delta;
@@ -227,7 +231,7 @@ export async function POST(req: Request) {
     },
     onError: (error) => {
       console.error("[/api/chat] stream error:", error);
-      return "Sorry — I couldn't generate a response. The AI service may be temporarily unavailable. Please try again in a moment.";
+      return describeAiError(error);
     },
   });
 
