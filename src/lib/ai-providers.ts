@@ -21,7 +21,7 @@ export function supportsEmbeddings(p: LlmProvider): p is EmbedProvider {
 }
 
 export const DEFAULT_LLM_MODEL: Record<LlmProvider, string> = {
-  google: "gemini-2.0-flash",
+  google: "gemini-flash-latest",
   openai: "gpt-4o-mini",
   anthropic: "claude-sonnet-4-6",
 };

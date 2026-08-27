@@ -76,7 +76,10 @@ export async function getUserAiConfig(userId: string): Promise<UserAiConfig> {
       ? {
           provider: row.llmProvider as LlmProvider,
           apiKey: llmKey,
-          model: row.llmModel ?? DEFAULT_LLM_MODEL[row.llmProvider as LlmProvider],
+          // Fixed per-provider default (no user override). Always resolve to the
+          // current default so retired models (e.g. a removed Gemini version)
+          // self-heal without touching the stored row.
+          model: DEFAULT_LLM_MODEL[row.llmProvider as LlmProvider],
           temperature: row.llmTemperature,
         }
       : null;
@@ -127,8 +130,7 @@ export async function getUserAiStatus(userId: string): Promise<AiStatus> {
     hasLlmKey: !!llmKey,
     llmProvider: llmKey ? llmProvider : null,
     llmLast4: llmKey ? llmKey.slice(-4) : null,
-    llmModel:
-      row.llmModel ?? (llmProvider ? DEFAULT_LLM_MODEL[llmProvider] : null),
+    llmModel: llmProvider ? DEFAULT_LLM_MODEL[llmProvider] : null,
     llmTemperature: row.llmTemperature,
     hasEmbeddingKey: !!embKey,
     embeddingProvider: embKey ? embeddingProvider : null,
