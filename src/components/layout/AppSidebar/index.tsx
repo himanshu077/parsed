@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   LogOut,
   MessageSquare,
+  Settings,
   TestTubeDiagonal,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -40,6 +41,7 @@ const navItems = [
   { label: "Chat", href: "/chat", icon: MessageSquare },
   { label: "Import", href: "/import", icon: Globe },
   { label: "Playground", href: "/playground", icon: TestTubeDiagonal },
+  { label: "Settings", href: "/settings", icon: Settings },
 ];
 
 function getInitials(name: string) {

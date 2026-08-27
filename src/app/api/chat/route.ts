@@ -9,8 +9,14 @@ import type { UIMessage, ModelMessage } from "ai";
 import { auth } from "@/lib/auth";
 import { retrieveContext, retrieveExtractiveAnswer, buildSystemPrompt } from "@/lib/rag";
 import { streamTextWithFallback, ANSWER_MODE } from "@/lib/ai";
+import { getUserAiConfig } from "@/lib/user-ai-config";
 import { db } from "@/lib/database";
 import { chats, chatMessages } from "@/db/schema";
+
+const NO_LLM_KEY_MESSAGE =
+  "You haven't added an API key yet. Add your Gemini, OpenAI, or Anthropic key in Settings to start chatting with your documents.";
+const NO_EMBEDDING_KEY_MESSAGE =
+  "Your Anthropic key can only write answers, not search documents. Add a Google or OpenAI key in Settings so I can find the relevant passages.";
 
 const MAX_HISTORY_MESSAGES = 8;
 
@@ -117,8 +123,30 @@ export async function POST(req: Request) {
 
   const userId = session.user.id;
 
+  // The user's own AI config (provider + key + model) powers their RAG:
+  // `embedding` for search, `llm` for generation. Both are required.
+  const aiConfig = await getUserAiConfig(userId);
+  const missingCreds = !aiConfig.llm
+    ? NO_LLM_KEY_MESSAGE
+    : !aiConfig.embedding
+      ? NO_EMBEDDING_KEY_MESSAGE
+      : null;
+
   const stream = createUIMessageStream({
     execute: async ({ writer }) => {
+      // No usable AI config — persist the user turn, then stream a helpful
+      // prompt instead of attempting (and failing) retrieval/generation.
+      if (missingCreds) {
+        if (isEdit && chatId) await deleteLastMessages(chatId, userId, deleteLast!);
+        await ensureChatAndSaveUserMessage(userId, query, chatId, isEdit);
+        const id = crypto.randomUUID();
+        writer.write({ type: "data-sources", data: [] });
+        writer.write({ type: "text-start", id });
+        writer.write({ type: "text-delta", id, delta: missingCreds });
+        writer.write({ type: "text-end", id });
+        return;
+      }
+
       // On edit, remove the old tail (edited message + everything after) before
       // saving the new turn, so the conversation stays consistent.
       if (isEdit && chatId) {
@@ -130,8 +158,8 @@ export async function POST(req: Request) {
       // an in-chat message instead of a hard 500.
       const [retrieval, resolvedChatId] = await Promise.all([
         ANSWER_MODE === "extractive"
-          ? retrieveExtractiveAnswer(query, userId, { fileIds })
-          : retrieveContext(query, userId, { fileIds }),
+          ? retrieveExtractiveAnswer(query, userId, { fileIds, embedding: aiConfig.embedding! })
+          : retrieveContext(query, userId, { fileIds, embedding: aiConfig.embedding! }),
         ensureChatAndSaveUserMessage(userId, query, chatId, isEdit),
       ]);
 
@@ -164,6 +192,7 @@ export async function POST(req: Request) {
           // Cancels the underlying LLM call when the client presses stop, so the
           // provider stops generating (and billing) instead of running to the end.
           abortSignal: req.signal,
+          llm: aiConfig.llm!,
         });
         try {
           for await (const delta of textStream) {

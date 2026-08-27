@@ -11,6 +11,7 @@ import {
 import { authClient } from "@/lib/auth-client";
 import { FolderCard } from "@/components/folders";
 import { FileList, FileUploader } from "@/components/files";
+import { AiKeyBanner } from "@/components/settings";
 import { useFolders, useFiles, buildFolderTree, useCreateFolder } from "@/hooks";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -122,6 +123,9 @@ export default function DashboardPage() {
   if (isNewUser) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-6 p-6 text-center">
+        <div className="w-full max-w-lg">
+          <AiKeyBanner />
+        </div>
         <div className="rounded-full bg-muted p-5">
           <Upload className="size-10 text-muted-foreground" />
         </div>
@@ -140,6 +144,8 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-8 p-6">
+      <AiKeyBanner />
+
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>

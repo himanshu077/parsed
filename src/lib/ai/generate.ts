@@ -29,15 +29,28 @@ export async function streamTextWithFallback(params: {
   messages: ModelMessage[];
   /** Aborts server-side generation when the client stops the response. */
   abortSignal?: AbortSignal;
+  /**
+   * A user's own LLM config (provider + key + model + temperature). When set,
+   * generation uses exactly that provider/key and skips failover (a fallback
+   * provider wouldn't have this key).
+   */
+  llm?: {
+    provider: LLMProvider;
+    apiKey: string;
+    model?: string;
+    temperature?: number;
+  };
 }): Promise<FallbackStream> {
-  const chain = getLLMProviderChain();
+  const chain = params.llm ? [params.llm.provider] : getLLMProviderChain();
   let lastError: unknown;
 
   for (const provider of chain) {
     try {
       const result = streamText({
-        model: getLLMModelFor(provider),
-        temperature: LLM_TEMPERATURE,
+        model: params.llm
+          ? getLLMModelFor(provider, { apiKey: params.llm.apiKey, model: params.llm.model })
+          : getLLMModelFor(provider),
+        temperature: params.llm?.temperature ?? LLM_TEMPERATURE,
         // Fail over quickly rather than exhausting long internal retries on a
         // dead host, while still tolerating a single transient blip.
         maxRetries: 1,

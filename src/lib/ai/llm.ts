@@ -1,6 +1,6 @@
-import { anthropic } from "@ai-sdk/anthropic";
+import { anthropic, createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
-import { google } from "@ai-sdk/google";
+import { google, createGoogleGenerativeAI } from "@ai-sdk/google";
 import type { LanguageModel } from "ai";
 import {
   LLM_CONFIG,
@@ -10,23 +10,43 @@ import {
 } from "./config";
 import type { LLMProvider } from "./config";
 
-/** Builds a LanguageModel for a specific provider. */
-export function getLLMModelFor(provider: LLMProvider): LanguageModel {
-  // The LLM_MODEL override only applies to the primary provider; a fallback
+/** Per-call override for a user's bring-your-own-key generation. */
+export interface LLMModelOptions {
+  apiKey?: string;
+  model?: string;
+}
+
+/**
+ * Builds a LanguageModel for a specific provider. When `opts` carries a user's
+ * own key/model it overrides the global env credentials — this powers per-user,
+ * bring-your-own-key generation.
+ */
+export function getLLMModelFor(
+  provider: LLMProvider,
+  opts: LLMModelOptions = {},
+): LanguageModel {
+  // The LLM_MODEL env override only applies to the primary provider; a fallback
   // provider uses its own default model (a llama tag wouldn't map to OpenAI).
   const resolvedModel =
+    opts.model ??
     (provider === LLM_CONFIG.provider ? LLM_CONFIG.model : undefined) ??
     DEFAULT_LLM_MODELS[provider];
 
   switch (provider) {
     case "anthropic":
-      return anthropic(resolvedModel);
+      return opts.apiKey
+        ? createAnthropic({ apiKey: opts.apiKey })(resolvedModel)
+        : anthropic(resolvedModel);
 
     case "openai":
-      return createOpenAI()(resolvedModel);
+      return opts.apiKey
+        ? createOpenAI({ apiKey: opts.apiKey })(resolvedModel)
+        : createOpenAI()(resolvedModel);
 
     case "google":
-      return google(resolvedModel);
+      return opts.apiKey
+        ? createGoogleGenerativeAI({ apiKey: opts.apiKey })(resolvedModel)
+        : google(resolvedModel);
 
     case "ollama": {
       const ollamaProvider = createOpenAI({
