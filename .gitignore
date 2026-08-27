@@ -15,9 +15,11 @@ build/
 dist/
 
 # Environment variables
-.env.development.local
-.env.test.local
-.env.production.local
+# Ignore every real env file, not just the *.local ones — README tells you to
+# `cp .env.example .env`, and this repo is public.
+.env
+.env.*
+!.env.example
 
 # Misc
 .DS_Store
