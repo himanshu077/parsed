@@ -1,0 +1,1 @@
+ALTER TABLE "user" ADD COLUMN "gemini_api_key" text;

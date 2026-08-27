@@ -3,6 +3,7 @@ import { db } from "@/lib/database";
 import { folders, files } from "@/db/schema";
 import { retrieveContext, retrieveExtractiveAnswer, buildSystemPrompt } from "@/lib/rag";
 import { streamTextWithFallback, ANSWER_MODE } from "@/lib/ai";
+import { getUserAiConfig } from "@/lib/user-ai-config";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 const CORS = {
@@ -79,14 +80,17 @@ export async function POST(req: Request) {
 
   const fileIds = folderFiles.map((f) => f.id);
 
+  // The widget answers using the folder owner's AI config.
+  const aiConfig = await getUserAiConfig(folder.userId);
+
   const encoder = new TextEncoder();
 
-  // No ready files — stream a helpful message without running RAG
-  if (fileIds.length === 0) {
+  // Stream a plain informational message and close (used for empty / unconfigured states).
+  const infoResponse = (message: string) => {
     const stream = new ReadableStream({
       start(controller) {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "sources", data: [] })}\n\n`));
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "text", content: "There are no documents ready in this folder yet. Please upload and process some documents first." })}\n\n`));
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "text", content: message })}\n\n`));
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "done" })}\n\n`));
         controller.close();
       },
@@ -94,6 +98,20 @@ export async function POST(req: Request) {
     return new Response(stream, {
       headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", ...CORS },
     });
+  };
+
+  // No ready files — stream a helpful message without running RAG.
+  if (fileIds.length === 0) {
+    return infoResponse(
+      "There are no documents ready in this folder yet. Please upload and process some documents first.",
+    );
+  }
+
+  // Owner hasn't configured AI keys — the widget can't answer.
+  if (!aiConfig.llm || !aiConfig.embedding) {
+    return infoResponse(
+      "This assistant isn't fully configured yet. Please try again later.",
+    );
   }
 
   const coreMessages = (messages as { role: string; content: string }[])
@@ -110,18 +128,21 @@ export async function POST(req: Request) {
         if (ANSWER_MODE === "extractive") {
           const { answer, sources } = await retrieveExtractiveAnswer(query, folder.userId, {
             fileIds,
+            embedding: aiConfig.embedding!,
           });
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "sources", data: sources })}\n\n`));
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "text", content: answer })}\n\n`));
         } else {
           const { context, sources } = await retrieveContext(query, folder.userId, {
             fileIds,
+            embedding: aiConfig.embedding!,
           });
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "sources", data: sources })}\n\n`));
 
           const { textStream } = await streamTextWithFallback({
             system: buildSystemPrompt(context),
             messages: coreMessages,
+            llm: aiConfig.llm!,
           });
 
           for await (const chunk of textStream) {

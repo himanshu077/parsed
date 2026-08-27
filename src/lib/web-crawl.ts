@@ -7,6 +7,7 @@ import { compileSiteMarkdown } from "@/lib/extractor";
 import { uploadToBlob } from "@/lib/storage";
 import { chunkText } from "@/lib/chunker";
 import { embedTexts } from "@/lib/embeddings";
+import { getUserAiConfig } from "@/lib/user-ai-config";
 import { upsertChunks } from "@/lib/pinecone";
 import type { ChunkMetadata } from "@/lib/pinecone";
 
@@ -144,7 +145,15 @@ export async function runWebCrawl(
 
   if (allChunks.length === 0) throw new Error("No content to embed");
 
-  const embeddings = await embedTexts(allChunks.map((c) => c.content));
+  // Embed with the owner's embedding config so crawled-site chunks share the
+  // vector space their queries are embedded in at chat time.
+  const { embedding } = await getUserAiConfig(userId);
+  if (!embedding) {
+    throw new Error(
+      "No embedding key configured. Add a Google or OpenAI key in Settings before importing a site.",
+    );
+  }
+  const embeddings = await embedTexts(allChunks.map((c) => c.content), embedding);
 
   const vectors = allChunks.map((chunk, i) => ({
     id: `${fileId}-chunk-${i}`,

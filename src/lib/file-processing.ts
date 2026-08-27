@@ -5,6 +5,7 @@ import { files, folders, fileChunks } from "@/db/schema";
 import { parseFile } from "./parsers";
 import { chunkText } from "./chunker";
 import { embedTexts } from "./embeddings";
+import { getUserAiConfig } from "./user-ai-config";
 import { upsertChunks, deleteChunksByIds } from "./pinecone";
 import type { ChunkMetadata } from "./pinecone";
 
@@ -100,8 +101,16 @@ export async function runFileProcessing(
   await emit(fileId, { step: "embed", message: `Embedding ${chunks.length} chunks…`, progress: 65 });
 
   // ── Embed all chunks ────────────────────────────────────────────────────────
-  log(`embedding ${chunks.length} chunks…`);
-  const embeddings = await embedTexts(chunks);
+  // Use the file owner's own embedding config so chunks are embedded in the same
+  // vector space their queries will be embedded in at chat time.
+  const { embedding } = await getUserAiConfig(userId);
+  if (!embedding) {
+    throw new Error(
+      "No embedding key configured. Add a Google or OpenAI key in Settings before processing files.",
+    );
+  }
+  log(`embedding ${chunks.length} chunks… (provider=${embedding.provider})`);
+  const embeddings = await embedTexts(chunks, embedding);
   log(`embedded ${embeddings.length} vectors dim=${embeddings[0]?.length}`);
 
   await emit(fileId, { step: "upsert", message: "Storing in vector DB…", progress: 85 });

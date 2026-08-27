@@ -2,6 +2,7 @@ import { cosineSimilarity } from "ai";
 import { hybridSearch } from "./hybrid-search";
 import type { HybridMatch } from "./hybrid-search";
 import { embedText, embedTexts } from "./embeddings";
+import type { EmbedOptions } from "@/lib/ai";
 import { trimToTokenLimit } from "./tokens";
 import type { Source } from "@/types/chat.types";
 
@@ -76,12 +77,12 @@ async function rerank(
 export async function retrieveContext(
   query: string,
   userId: string,
-  options: { fileIds?: string[]; topK?: number } = {},
+  options: { fileIds?: string[]; topK?: number; embedding?: EmbedOptions } = {},
 ): Promise<RagResult> {
-  const { fileIds, topK = FINAL_TOP_K } = options;
+  const { fileIds, topK = FINAL_TOP_K, embedding } = options;
 
   // 1. Hybrid search — vector + keyword, merged via RRF
-  const candidates = await hybridSearch(query, userId, { fileIds });
+  const candidates = await hybridSearch(query, userId, { fileIds, embedding });
 
   if (candidates.length === 0) {
     return {
@@ -145,9 +146,10 @@ function splitSentences(text: string): string[] {
 export async function retrieveExtractiveAnswer(
   query: string,
   userId: string,
-  options: { fileIds?: string[] } = {},
+  options: { fileIds?: string[]; embedding?: EmbedOptions } = {},
 ): Promise<ExtractiveResult> {
-  const candidates = await hybridSearch(query, userId, { fileIds: options.fileIds });
+  const { fileIds, embedding } = options;
+  const candidates = await hybridSearch(query, userId, { fileIds, embedding });
   if (candidates.length === 0) return { answer: NOT_FOUND, sources: [] };
 
   const pool = candidates.slice(0, EXTRACTIVE_POOL);
@@ -168,8 +170,8 @@ export async function retrieveExtractiveAnswer(
   }
 
   const [queryVec, sentenceVecs] = await Promise.all([
-    embedText(query),
-    embedTexts(sentences.map((s) => s.text)),
+    embedText(query, embedding),
+    embedTexts(sentences.map((s) => s.text), embedding),
   ]);
 
   const scored = sentences

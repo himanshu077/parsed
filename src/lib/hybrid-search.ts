@@ -2,6 +2,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "./database";
 import { fileChunks, files } from "@/db/schema";
 import { embedText } from "./embeddings";
+import type { EmbedOptions } from "@/lib/ai";
 import { queryIndex } from "./pinecone";
 
 // How many candidates each search arm contributes before merging
@@ -94,16 +95,16 @@ function reciprocalRankFusion(
 export async function hybridSearch(
   query: string,
   userId: string,
-  options: { fileIds?: string[]; topK?: number } = {},
+  options: { fileIds?: string[]; topK?: number; embedding?: EmbedOptions } = {},
 ): Promise<HybridMatch[]> {
-  const { fileIds, topK = VECTOR_TOP_K } = options;
+  const { fileIds, topK = VECTOR_TOP_K, embedding } = options;
 
   const filter =
     fileIds && fileIds.length > 0 ? { fileId: { $in: fileIds } } : undefined;
 
   // Run both searches in parallel
   const [vectorResult, keywordMatches] = await Promise.all([
-    embedText(query).then((vector) =>
+    embedText(query, embedding).then((vector) =>
       queryIndex(userId, vector, { topK: VECTOR_TOP_K, filter }),
     ),
     keywordSearch(query, userId, fileIds, KEYWORD_TOP_K),

@@ -5,7 +5,7 @@ export const OLLAMA_BASE_URL =
   process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
 
 export const LLM_CONFIG = {
-  provider: (process.env.LLM_PROVIDER ?? "ollama") as LLMProvider,
+  provider: (process.env.LLM_PROVIDER ?? "google") as LLMProvider,
   model: process.env.LLM_MODEL as string | undefined,
 };
 
@@ -30,7 +30,7 @@ export const ANSWER_MODE = (process.env.ANSWER_MODE ?? "generative") as
   | "extractive";
 
 export const EMBEDDING_CONFIG = {
-  provider: (process.env.EMBEDDING_PROVIDER ?? "ollama") as EmbeddingProvider,
+  provider: (process.env.EMBEDDING_PROVIDER ?? "google") as EmbeddingProvider,
   model: process.env.EMBEDDING_MODEL as string | undefined,
 };
 

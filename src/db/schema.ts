@@ -4,12 +4,40 @@ import {
   index,
   integer,
   pgTable,
+  real,
   text,
   timestamp,
   varchar,
 } from "drizzle-orm/pg-core";
 
 import { user } from "./auth-schema";
+
+// ── User AI Settings ─────────────────────────────────────────────────────────
+// Per-user, bring-your-own-key AI configuration. One row per user (userId PK).
+// API keys are stored encrypted (AES-256-GCM via src/lib/encryption.ts).
+// Providers are auto-detected from the key; Anthropic (LLM-only) needs a
+// separate Google/OpenAI key for embeddings.
+
+export const userAiSettings = pgTable("user_ai_settings", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  llmProvider: text("llm_provider"), // google | openai | anthropic
+  llmApiKey: text("llm_api_key"), // encrypted
+  llmModel: text("llm_model"),
+  llmTemperature: real("llm_temperature").default(0.3).notNull(),
+  embeddingProvider: text("embedding_provider"), // google | openai
+  embeddingApiKey: text("embedding_api_key"), // encrypted (may equal llmApiKey)
+  embeddingModel: text("embedding_model"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+export type UserAiSettings = typeof userAiSettings.$inferSelect;
+export type NewUserAiSettings = typeof userAiSettings.$inferInsert;
 
 // ── Folders ─────────────────────────────────────────────────────────────────
 
