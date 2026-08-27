@@ -6,3 +6,4 @@ export { embedTexts, embedText } from "./embeddings";
 export type { EmbedOptions } from "./embeddings";
 export { LLM_TEMPERATURE, ANSWER_MODE } from "./config";
 export type { LLMProvider, EmbeddingProvider } from "./config";
+export { describeAiError, describeAiErrorPublic } from "./errors";

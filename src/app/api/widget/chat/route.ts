@@ -2,7 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/database";
 import { folders, files } from "@/db/schema";
 import { retrieveContext, retrieveExtractiveAnswer, buildSystemPrompt } from "@/lib/rag";
-import { streamTextWithFallback, ANSWER_MODE } from "@/lib/ai";
+import { streamTextWithFallback, ANSWER_MODE, describeAiErrorPublic } from "@/lib/ai";
 import { getUserAiConfig } from "@/lib/user-ai-config";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 
@@ -151,7 +151,7 @@ export async function POST(req: Request) {
         }
       } catch (err) {
         console.error("[/api/widget/chat] stream error:", err);
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "text", content: "Sorry — I couldn't generate a response right now. Please try again." })}\n\n`));
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "text", content: describeAiErrorPublic(err) })}\n\n`));
       } finally {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "done" })}\n\n`));
         controller.close();

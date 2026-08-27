@@ -46,3 +46,15 @@ export const DEFAULT_EMBEDDING_MODELS: Record<EmbeddingProvider, string> = {
   google: "gemini-embedding-001",
   ollama: "nomic-embed-text",
 };
+
+// Ordered fallback LLM models per provider, tried in sequence when the primary
+// model is unavailable (e.g. 404 retired, 429 quota, 503 overloaded). Lets
+// generation keep working when a provider throttles or retires the default.
+// These stay off the "-latest" aliases on purpose — pinned versions are less
+// contended than whatever alias resolves to the newest, busiest model.
+export const LLM_MODEL_FALLBACKS: Record<LLMProvider, string[]> = {
+  google: ["gemini-2.5-flash", "gemini-flash-lite-latest"],
+  openai: ["gpt-4o"],
+  anthropic: ["claude-3-5-sonnet-latest"],
+  ollama: [],
+};
