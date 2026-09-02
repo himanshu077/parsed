@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --port 3002",
-    "build:widget": "cd widget && npm ci && npm run build && cp dist/parsed-widget.js ../public/widget.js",
+    "build:widget": "cd widget && npm ci --include=dev && npm run build && cp dist/parsed-widget.js ../public/widget.js",
     "build": "npm run build:widget && next build",
     "start": "next start",
     "lint": "eslint",
