@@ -80,7 +80,7 @@ const SCENARIOS = [
 
 function StepList({ children }: { children: React.ReactNode }) {
   return (
-    <ol className="ml-4 list-decimal space-y-1.5 text-muted-foreground marker:text-foreground">
+    <ol className="ml-4 list-decimal space-y-1 text-muted-foreground marker:text-foreground">
       {children}
     </ol>
   );
@@ -96,7 +96,7 @@ function PageLink({ href, children }: { href: string; children: React.ReactNode 
 
 export default function HelpPage() {
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-8 p-6 pb-16">
+    <div className="mx-auto w-full max-w-3xl space-y-5 p-5 pb-12">
       <div className="flex items-start gap-3">
         <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
           <LifeBuoy className="size-5" />
@@ -110,11 +110,11 @@ export default function HelpPage() {
       </div>
 
       {/* ── The one idea ──────────────────────────────────────────────────── */}
-      <Card>
-        <CardHeader>
+      <Card className="gap-3 py-4">
+        <CardHeader className="px-4">
           <CardTitle className="text-base">Start here: the one thing to understand</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3 text-sm leading-relaxed">
+        <CardContent className="px-4 space-y-2 text-sm">
           <p>
             <strong>Parsed reads your documents so you can ask them questions.</strong>
           </p>
@@ -131,15 +131,15 @@ export default function HelpPage() {
       </Card>
 
       {/* ── Setup ─────────────────────────────────────────────────────────── */}
-      <section className="space-y-3">
+      <section className="space-y-2">
         <h2 className="text-lg font-semibold tracking-tight">Before you start</h2>
-        <Card>
-          <CardHeader className="pb-2">
+        <Card className="gap-3 py-4">
+          <CardHeader className="px-4">
             <CardTitle className="flex items-center gap-2 text-sm">
               <KeyRound className="size-4" /> Add your AI key
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2 text-sm text-muted-foreground">
+          <CardContent className="px-4 space-y-2 text-sm text-muted-foreground">
             <p>
               Parsed needs an AI key to read documents and answer questions. Go to{" "}
               <PageLink href="/settings">Settings</PageLink> and paste a Google Gemini, OpenAI or
@@ -166,13 +166,13 @@ export default function HelpPage() {
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           {SCENARIOS.map(({ icon: Icon, title, detail, href, linkLabel }) => (
-            <Card key={title}>
-              <CardHeader className="pb-2">
+            <Card key={title} className="gap-2 py-4">
+              <CardHeader className="px-4">
                 <CardTitle className="flex items-center gap-2 text-sm">
                   <Icon className="size-4" /> {title}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2 text-sm text-muted-foreground">
+              <CardContent className="px-4 space-y-2 text-sm text-muted-foreground">
                 <p>{detail}</p>
                 <PageLink href={href}>{linkLabel} →</PageLink>
               </CardContent>
@@ -184,7 +184,7 @@ export default function HelpPage() {
       <Separator />
 
       {/* ── Step by step ──────────────────────────────────────────────────── */}
-      <section className="space-y-4">
+      <section className="space-y-3">
         <div>
           <h2 className="text-lg font-semibold tracking-tight">Step by step</h2>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -193,8 +193,8 @@ export default function HelpPage() {
         </div>
 
         {/* 1. Upload */}
-        <Card>
-          <CardHeader className="pb-3">
+        <Card className="gap-3 py-4">
+          <CardHeader className="px-4">
             <CardTitle className="flex items-center gap-2 text-sm">
               <Upload className="size-4" />
               1. Upload a document
@@ -203,7 +203,7 @@ export default function HelpPage() {
               </Badge>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3 text-sm">
+          <CardContent className="px-4 space-y-2 text-sm">
             <StepList>
               <li>
                 Open the <PageLink href="/dashboard">Dashboard</PageLink>.
@@ -231,14 +231,14 @@ export default function HelpPage() {
         </Card>
 
         {/* 2. Chat with one file */}
-        <Card>
-          <CardHeader className="pb-3">
+        <Card className="gap-3 py-4">
+          <CardHeader className="px-4">
             <CardTitle className="flex items-center gap-2 text-sm">
               <MessageSquare className="size-4" />
               2. Ask questions about one file
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3 text-sm">
+          <CardContent className="px-4 space-y-2 text-sm">
             <StepList>
               <li>Click a file card on the dashboard or inside a folder.</li>
               <li>
@@ -262,14 +262,14 @@ export default function HelpPage() {
         </Card>
 
         {/* 3. Folders */}
-        <Card>
-          <CardHeader className="pb-3">
+        <Card className="gap-3 py-4">
+          <CardHeader className="px-4">
             <CardTitle className="flex items-center gap-2 text-sm">
               <FolderOpen className="size-4" />
               3. Organise with folders and ask across many files
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3 text-sm">
+          <CardContent className="px-4 space-y-2 text-sm">
             <StepList>
               <li>
                 On the <PageLink href="/dashboard">Dashboard</PageLink> click{" "}
@@ -301,14 +301,14 @@ export default function HelpPage() {
         </Card>
 
         {/* 4. Import a website */}
-        <Card>
-          <CardHeader className="pb-3">
+        <Card className="gap-3 py-4">
+          <CardHeader className="px-4">
             <CardTitle className="flex items-center gap-2 text-sm">
               <Globe className="size-4" />
               4. Import a website
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3 text-sm">
+          <CardContent className="px-4 space-y-2 text-sm">
             <StepList>
               <li>
                 Go to <PageLink href="/import">Import</PageLink>.
@@ -330,8 +330,8 @@ export default function HelpPage() {
         </Card>
 
         {/* 5. Widget */}
-        <Card>
-          <CardHeader className="pb-3">
+        <Card className="gap-3 py-4">
+          <CardHeader className="px-4">
             <CardTitle className="flex items-center gap-2 text-sm">
               <Code2 className="size-4" />
               5. Put a chat widget on your own website
@@ -340,7 +340,7 @@ export default function HelpPage() {
               </Badge>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3 text-sm">
+          <CardContent className="px-4 space-y-2 text-sm">
             <p className="text-muted-foreground">
               Let visitors to your site ask questions that are answered only from one of your
               folders. Good for help centres, product docs and FAQs.
@@ -376,13 +376,13 @@ export default function HelpPage() {
       <Separator />
 
       {/* ── File status ───────────────────────────────────────────────────── */}
-      <section className="space-y-3">
+      <section className="space-y-2">
         <h2 className="text-lg font-semibold tracking-tight">What the file status means</h2>
         <div className="overflow-hidden rounded-md border">
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
               <tr>
-                <th className="w-[9rem] px-3 py-2 font-medium">Status</th>
+                <th className="w-36 px-3 py-2 font-medium">Status</th>
                 <th className="px-3 py-2 font-medium">What it means</th>
               </tr>
             </thead>
@@ -401,9 +401,9 @@ export default function HelpPage() {
       </section>
 
       {/* ── Troubleshooting ───────────────────────────────────────────────── */}
-      <section className="space-y-3">
+      <section className="space-y-2">
         <h2 className="text-lg font-semibold tracking-tight">If something looks wrong</h2>
-        <div className="space-y-2 text-sm">
+        <div className="space-y-1.5 text-sm">
           <div className="rounded-md border px-4 py-3">
             <p className="font-medium">The answer says it cannot find the information</p>
             <p className="mt-1 text-muted-foreground">
