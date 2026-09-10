@@ -7,6 +7,7 @@ import {
   ChevronsUpDown,
   Globe,
   LayoutDashboard,
+  LifeBuoy,
   LogOut,
   MessageSquare,
   Settings,
@@ -43,6 +44,8 @@ const navItems = [
   { label: "Playground", href: "/playground", icon: TestTubeDiagonal },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
+
+const helpNavItems = [{ label: "How to use", href: "/help", icon: LifeBuoy }];
 
 function getInitials(name: string) {
   return name
@@ -117,6 +120,28 @@ export function AppSidebar({ user }: AppSidebarProps) {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <FolderTree />
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Help */}
+        <SidebarGroup className="mt-auto">
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {helpNavItems.map((item) => (
+                <SidebarMenuItem key={item.href}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname.startsWith(item.href)}
+                    tooltip={item.label}
+                  >
+                    <Link href={item.href}>
+                      <item.icon />
+                      <span>{item.label}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
