@@ -26,17 +26,22 @@ interface CrawlProgress {
 // ── Home ───────────────────────────────────────────────────────────────────────
 
 const MAX_PAGES_OPTIONS = [10, 25, 50] as const;
-type MaxPages = typeof MAX_PAGES_OPTIONS[number];
+const MAX_PAGES_LIMIT = 200;
 
 function HomeView({ onStarted }: { onStarted: (jobId: string, rootUrl: string) => void }) {
   const [url, setUrl] = useState("");
-  const [maxPages, setMaxPages] = useState<MaxPages>(25);
+  const [preset, setPreset] = useState<number | "custom">(25);
+  const [customPages, setCustomPages] = useState("");
+  const parsedCustom = Number.parseInt(customPages, 10);
+  const customValid =
+    Number.isInteger(parsedCustom) && parsedCustom >= 1 && parsedCustom <= MAX_PAGES_LIMIT;
+  const maxPages = preset === "custom" ? (customValid ? parsedCustom : null) : preset;
   const startImport = useStartImport();
   const { data: jobs, isLoading: jobsLoading } = useImportJobs();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!url.trim()) return;
+    if (!url.trim() || maxPages === null) return;
     try {
       const { jobId } = await startImport.mutateAsync({ url: url.trim(), maxPages });
       onStarted(jobId, url.trim());
@@ -74,27 +79,44 @@ function HomeView({ onStarted }: { onStarted: (jobId: string, rootUrl: string) =
           <div className="space-y-1.5">
             <p className="text-xs text-muted-foreground">Max pages to crawl</p>
             <div className="flex gap-2">
-              {MAX_PAGES_OPTIONS.map((n) => (
+              {[...MAX_PAGES_OPTIONS, "custom" as const].map((n) => (
                 <button
                   key={n}
                   type="button"
-                  onClick={() => setMaxPages(n)}
+                  onClick={() => setPreset(n)}
                   disabled={startImport.isPending}
                   className={`flex-1 rounded-md border px-3 py-1.5 text-sm transition-colors ${
-                    maxPages === n
+                    preset === n
                       ? "border-primary bg-primary text-primary-foreground"
                       : "border-input bg-background text-foreground hover:bg-muted"
                   }`}
                 >
-                  {n}
+                  {n === "custom" ? "Custom" : n}
                 </button>
               ))}
             </div>
+            {preset === "custom" && (
+              <Input
+                type="number"
+                min={1}
+                max={MAX_PAGES_LIMIT}
+                step={1}
+                value={customPages}
+                onChange={(e) => setCustomPages(e.target.value)}
+                placeholder={`Number of pages (1–${MAX_PAGES_LIMIT})`}
+                disabled={startImport.isPending}
+                autoFocus
+              />
+            )}
           </div>
           {startImport.error && (
             <p className="text-sm text-destructive">{startImport.error.message}</p>
           )}
-          <Button type="submit" className="w-full" disabled={!url.trim() || startImport.isPending}>
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={!url.trim() || maxPages === null || startImport.isPending}
+          >
             {startImport.isPending ? (
               <>
                 <Loader2 className="mr-2 size-4 animate-spin" />
