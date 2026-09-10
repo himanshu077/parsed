@@ -30,10 +30,10 @@ export async function POST(req: Request) {
       );
     }
 
-    const ALLOWED_MAX_PAGES = [10, 25, 50] as const;
+    const MAX_PAGES_LIMIT = 200;
     const requestedMax = typeof body.maxPages === "number" ? body.maxPages : 25;
-    const maxPages = ALLOWED_MAX_PAGES.includes(requestedMax as typeof ALLOWED_MAX_PAGES[number])
-      ? requestedMax
+    const maxPages = Number.isInteger(requestedMax)
+      ? Math.min(Math.max(requestedMax, 1), MAX_PAGES_LIMIT)
       : 25;
 
     const [job] = await db
