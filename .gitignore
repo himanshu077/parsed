@@ -38,3 +38,4 @@ docs/*
 .docs/*
 .claude/*
 config.bat
+.env
